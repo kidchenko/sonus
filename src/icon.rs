@@ -100,7 +100,7 @@ fn faders(x: f32, y: f32, stroke: f32, gap: f32) -> (f32, f32) {
 /// icons, where the normal ones shrink to a pixel or two.
 fn faders_sized(x: f32, y: f32, stroke: f32, gap: f32, cap: f32) -> (f32, f32) {
     let geo = Geometry {
-        strips: STRIPS,
+        strips: &STRIPS,
         top: STRIP_TOP,
         bottom: STRIP_BOTTOM,
         hx: CAP_HX * cap,
@@ -113,7 +113,7 @@ fn faders_sized(x: f32, y: f32, stroke: f32, gap: f32, cap: f32) -> (f32, f32) {
 }
 
 struct Geometry {
-    strips: [(f32, f32); 3],
+    strips: &'static [(f32, f32)],
     top: f32,
     bottom: f32,
     hx: f32,
@@ -123,17 +123,21 @@ struct Geometry {
     gap: f32,
 }
 
-/// The 16 and 20 px app icon, drawn on the pixel grid: at 16 px each unit
-/// of the 32 grid is half a pixel, so strips on multiples of 8 and caps two
-/// units high land on whole pixels and stay crisp instead of smearing.
+/// The 16 and 20 px app icon: one fader rather than three. Three faders in
+/// 16 pixels is three smudges; one, with a 2 px line and a cap half the tile
+/// wide, still says "volume". Drawn on the pixel grid: at 16 px each unit of
+/// the 32 grid is half a pixel, so these numbers land on whole pixels and stay
+/// crisp instead of smearing.
 const TINY: Geometry = Geometry {
-    strips: [(8.0, 20.0), (16.0, 10.0), (24.0, 16.0)],
-    top: 5.0,
-    bottom: 27.0,
-    hx: 3.6,
-    hy: 2.0,
-    radius: 1.0,
-    stroke: 2.0,
+    // Below the middle, so it reads as a fader set somewhere rather than a
+    // plus or a divide sign.
+    strips: &[(16.0, 19.0)],
+    top: 6.0,
+    bottom: 26.0,
+    hx: 8.0,
+    hy: 3.0,
+    radius: 2.5,
+    stroke: 4.0,
     gap: 2.0,
 };
 
@@ -141,7 +145,7 @@ fn faders_geo(x: f32, y: f32, g: &Geometry) -> (f32, f32) {
     let mut line = f32::MAX;
     let mut cap_d = f32::MAX;
     let (hx, hy, stroke, gap) = (g.hx, g.hy, g.stroke, g.gap);
-    for (sx, sy) in g.strips {
+    for &(sx, sy) in g.strips {
         let c = rounded_box(x, y, sx, sy, hx, hy, g.radius);
         cap_d = cap_d.min(c);
         let l = seg(x, y, (sx, g.top), (sx, g.bottom)) - stroke / 2.0;

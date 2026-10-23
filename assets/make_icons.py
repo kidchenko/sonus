@@ -8,8 +8,13 @@ Writes, next to this script:
   icon-256.png   for the Chocolatey/winget listings and the README
   icon-1024.png  the master build.sh turns into the macOS .icns
 
-and a PNG of every tray face and glyph into the dump directory, for looking
-at.
+and the landing page's favicons into docs/img: favicon.ico (16, 32, 48) and
+favicon-16.png / favicon-32.png. Those come from the app's own small sizes,
+which are drawn for small sizes (a single fader at 16), rather than letting
+the browser shrink the 256 px icon to a smudge.
+
+It also leaves a PNG of every tray face and glyph in the dump directory, for
+looking at.
 
 Standard library only: the app draws its own pixels, so the only job here is
 container formats.
@@ -66,12 +71,19 @@ def main(dump: pathlib.Path) -> None:
     for edge in (256, 1024):
         (HERE / f"icon-{edge}.png").write_bytes(png(load("app", edge), edge))
 
+    site = HERE.parent / "docs" / "img"
+    site.mkdir(parents=True, exist_ok=True)
+    (site / "favicon.ico").write_bytes(ico([(e, png(load("app", e), e)) for e in (16, 32, 48)]))
+    for edge in (16, 32):
+        (site / f"favicon-{edge}.png").write_bytes(png(load("app", edge), edge))
+
     for pattern in ("tray-*.rgba", "glyph-*.rgba"):
         for path in sorted(dump.glob(pattern)):
             edge = int(path.stem.rsplit("-", 1)[1])
             path.with_suffix(".png").write_bytes(png(path.read_bytes(), edge))
 
     print(f"wrote icon.ico, icon-256.png, icon-1024.png to {HERE}")
+    print(f"wrote favicon.ico, favicon-16.png, favicon-32.png to {site}")
     print(f"tray and glyph previews in {dump}")
 
 
