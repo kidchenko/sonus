@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: kidchenko.Sonus
+PackageVersion: 0.0.1
+PackageLocale: en-US
+Publisher: kidchenko
+PublisherUrl: https://github.com/kidchenko
+PublisherSupportUrl: https://github.com/kidchenko/sonus/issues
+PackageName: Sonus
+PackageUrl: https://github.com/kidchenko/sonus
+License: MIT
+LicenseUrl: https://github.com/kidchenko/sonus/blob/main/LICENSE
+Copyright: Copyright (c) 2026 kidchenko
+ShortDescription: A volume slider for every app, in the tray
+Description: |-
+  A volume mixer one click away in the notification area: a slider for the
+  output device and one for every app playing through it, each with its own
+  icon, live level meter and mute button. Switch the output device from the
+  same panel.
+
+  Windows' own Volume Mixer is two clicks deep in Settings.
+Moniker: sonus
+Tags:
+  - volume
+  - mixer
+  - audio
+  - sound
+  - tray
+  - utilities
+ReleaseNotesUrl: https://github.com/kidchenko/sonus/releases
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

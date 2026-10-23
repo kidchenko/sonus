@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Sonus</string>
+    <key>CFBundleDisplayName</key>
+    <string>Sonus</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.kidchenko.sonus</string>
+    <key>CFBundleExecutable</key>
+    <string>sonus</string>
+    <key>CFBundleIconFile</key>
+    <string>Sonus</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@VERSION@</string>
+    <!-- The whole point: an agent that lives in the menu bar with no Dock icon
+         and no menu of its own. Without this the tray app would take over the
+         Dock and the main menu on launch. -->
+    <key>LSUIElement</key>
+    <true/>
+    <!-- Shown in the System Audio Recording prompt. Per-app volume on macOS
+         works by capturing each app's sound and playing it back at the level
+         you set; macOS asks before anything may capture another app's sound. -->
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Sonus changes each app's volume by playing its sound back at the level you choose.</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
+</dict>
+</plist>

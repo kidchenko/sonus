@@ -1,0 +1,83 @@
+[package]
+name         = "sonus"
+version      = "0.0.1"
+edition      = "2021"
+rust-version = "1.77"
+description  = "A volume slider for every app, in the tray"
+authors      = ["kidchenko <kidchenko@gmail.com>"]
+license      = "MIT"
+repository   = "https://github.com/kidchenko/sonus"
+
+[[bin]]
+name = "sonus"
+path = "src/main.rs"
+
+[dependencies]
+# Already in the tree via tray-icon; decodes the menu's glyphs (src/art.rs).
+png        = "0.18"
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+tao        = "0.37"
+tray-icon  = "0.26"
+
+# ---------------------------------------------------------------------------
+# Windows
+# ---------------------------------------------------------------------------
+# WASAPI for the sessions and the endpoint, Direct2D and DirectWrite for the
+# panel. All of it ships with Windows; the crate is bindings only.
+[target.'cfg(windows)'.dependencies.windows]
+version  = "0.62"
+features = [
+    "Win32_Devices_FunctionDiscovery",
+    "Win32_Foundation",
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Console",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+]
+
+# The build script's cfg matches the host: resource embedding only happens when
+# building on Windows, which is where the Windows release is built anyway.
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+# ---------------------------------------------------------------------------
+# macOS
+# ---------------------------------------------------------------------------
+# Core Audio is called through hand-written declarations (src/audio/mac.rs):
+# the process-tap half is looked up at run time, so the app still starts, with
+# device controls only, on a macOS too old to have it. `libc` is for
+# localtime_r, proc_pidpath and dlsym.
+[target.'cfg(target_os = "macos")'.dependencies]
+block2           = "0.6"
+libc             = "0.2"
+objc2            = "0.6"
+objc2-app-kit    = "0.3"
+objc2-foundation = "0.3"
+
+# Size is a first-class goal, same as the rest of the family.
+[profile.release]
+opt-level     = "z"
+lto           = true
+codegen-units = 1
+panic         = "abort"
+strip         = true

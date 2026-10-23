@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonus: a volume slider for every app</title>
+<meta name="description" content="A volume mixer in the tray: a slider, a live meter and a mute button for every app playing sound, and the output device one click away. For Windows and macOS. Free and open source.">
+<link rel="icon" href="img/icon-256.png" type="image/png">
+
+<meta property="og:title" content="Sonus: a volume slider for every app">
+<meta property="og:description" content="Every app playing sound, with its own slider, meter and mute button, one click from the tray. For Windows and macOS.">
+<meta property="og:image" content="https://josebarbosa.dev/sonus/img/icon-256.png">
+<meta property="og:url" content="https://josebarbosa.dev/sonus/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+
+<style>
+  /* Violet from the app icon's tile, and the cream of its faders. */
+  :root {
+    --bg:      #0e0a1c;
+    --raised:  #171128;
+    --line:    #2c2347;
+    --text:    #f1edfb;
+    --dim:     #b3aacb;
+    --faint:   #7a7096;
+    --accent:  #a98bff;
+    --on-acc:  #150b33;
+    --panel:   #2b2b2b;
+    --panel-line: #404040;
+    --p-text:  #ffffff;
+    --p-dim:   rgba(255,255,255,.62);
+    --p-faint: rgba(255,255,255,.42);
+    --p-track: rgba(255,255,255,.40);
+    --p-thumb: #454545;
+    --p-hover: rgba(255,255,255,.06);
+    --p-accent:#60cdff;
+    --radius:  14px;
+    --measure: 46rem;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg:     #f8f6fd;
+      --raised: #efebfa;
+      --line:   #ddd5f0;
+      --text:   #160e2e;
+      --dim:    #52487a;
+      --faint:  #857ba3;
+      --accent: #5b3fd6;
+      --on-acc: #ffffff;
+      --panel:  #f9f9f9;
+      --panel-line: #dedede;
+      --p-text: rgba(0,0,0,.9);
+      --p-dim:  rgba(0,0,0,.61);
+      --p-faint:rgba(0,0,0,.45);
+      --p-track:rgba(0,0,0,.40);
+      --p-thumb:#ffffff;
+      --p-hover:rgba(0,0,0,.04);
+      --p-accent:#005fb8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.65 "Segoe UI Variable Text", "Segoe UI", system-ui,
+          -apple-system, "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 20px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font-family: "Cascadia Code", "SF Mono", Consolas, ui-monospace, monospace;
+    font-size: .88em;
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: .12em .42em;
+    white-space: nowrap;
+  }
+  pre {
+    font-family: "Cascadia Code", "SF Mono", Consolas, ui-monospace, monospace;
+    font-size: .84rem; line-height: 1.6;
+    background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 18px; margin: 0; overflow-x: auto; color: var(--dim);
+  }
+  pre b { color: var(--text); font-weight: 600; }
+
+  /* ------------------------------------------------------------------ hero */
+  header.wrap { text-align: center; padding-top: 84px; padding-bottom: 8px; }
+  header img.mark { width: 128px; height: 128px; filter: drop-shadow(0 18px 36px rgba(40,10,120,.45)); }
+  h1 {
+    font-size: clamp(2.7rem, 9vw, 4.2rem);
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.04;
+    margin: 26px 0 0;
+  }
+  .tagline { font-size: clamp(1.12rem, 3.6vw, 1.45rem); color: var(--dim); margin: 14px auto 0; max-width: 32ch; }
+
+  .cta { margin: 36px 0 0; display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .download {
+    display: inline-block;
+    font-weight: 650;
+    font-size: 1.04rem;
+    padding: 14px 28px;
+    border-radius: 11px;
+    background: var(--accent);
+    color: var(--on-acc);
+    transition: transform .12s ease, filter .12s ease;
+  }
+  .download:hover { text-decoration: none; transform: translateY(-1px); filter: brightness(1.07); }
+  .download.ghost, .os-mac .dl-win {
+    background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--line);
+  }
+  .os-mac .dl-mac { background: var(--accent); color: var(--on-acc); box-shadow: none; order: -1; }
+  .alt { margin: 18px 0 0; color: var(--faint); font-size: .94rem; }
+  .for-mac { display: none; }
+  .os-mac .for-win { display: none; }
+  .os-mac .for-mac { display: block; }
+
+  /* ------------------------------------------------------- the demo mixer */
+  .demo { margin: 64px auto 0; display: flex; flex-direction: column; align-items: center; }
+  .mixer {
+    width: min(100%, 360px);
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 8px;
+    padding: 10px 16px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.42);
+    font: 13px/1.2 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--p-text);
+    user-select: none;
+    text-align: left;
+  }
+  .mixer .row { display: grid; grid-template-columns: 32px 1fr; gap: 0 12px; align-items: center; height: 60px; }
+  .mixer .tile {
+    width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
+    color: #fff; font-weight: 600; font-size: 16px; transition: opacity .15s;
+  }
+  .mixer .tile.out { background: color-mix(in srgb, var(--p-accent) 22%, transparent); color: var(--p-accent); }
+  .mixer .row.muted .tile:not(.out) { opacity: .45; }
+  .mixer .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .mixer .name.dev { font-weight: 600; font-size: 13.5px; }
+  .mixer .row.idle .name { color: var(--p-dim); }
+  .mixer .line { display: grid; grid-template-columns: 1fr 30px 30px; align-items: center; gap: 0 4px; margin-top: 2px; }
+  .mixer .num { text-align: right; color: var(--p-dim); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+  .mixer .row.muted .num { color: var(--p-faint); }
+  .mixer .mute {
+    all: unset; width: 30px; height: 30px; border-radius: 6px; display: grid; place-items: center;
+    color: var(--p-dim); cursor: pointer;
+  }
+  .mixer .mute:hover { background: var(--p-hover); }
+  .mixer .mute svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .mixer .row.muted .mute { color: var(--p-faint); }
+  .mixer .rule { height: 1px; background: var(--p-hover); margin: 8px 0 4px; filter: brightness(1.6); }
+  .mixer .label { color: var(--p-dim); font-weight: 600; font-size: 12px; height: 26px; display: flex; align-items: center; }
+
+  /* The slider, drawn the way the app draws it: track, fill, meter, thumb. */
+  .slider { position: relative; height: 24px; cursor: pointer; touch-action: none; }
+  .slider .track, .slider .fill, .slider .meter {
+    position: absolute; left: 0; top: 10px; height: 4px; border-radius: 2px;
+  }
+  .slider .track { right: 0; background: var(--p-track); }
+  .slider .fill { background: var(--p-accent); }
+  .slider .meter { background: rgba(255,255,255,.42); }
+  .slider .thumb {
+    position: absolute; top: 2px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%;
+    background: var(--p-thumb); box-shadow: inset 0 0 0 1px rgba(127,127,127,.25);
+  }
+  .slider .thumb::after {
+    content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--p-accent);
+    transition: inset .1s ease;
+  }
+  .slider:hover .thumb::after { inset: 3px; }
+  .slider.held .thumb::after { inset: 5px; }
+  .row.muted .slider .fill, .row.muted .slider .meter { display: none; }
+  .row.muted .slider .thumb::after { background: var(--p-faint); }
+  .hint { color: var(--faint); font-size: .86rem; margin-top: 14px; text-align: center; }
+
+  /* ------------------------------------------------------------- sections */
+  section { padding: 76px 0 0; }
+  h2 { font-size: clamp(1.6rem, 5vw, 2.1rem); letter-spacing: -.02em; line-height: 1.15; margin: 0 0 10px; }
+  .lede { color: var(--dim); margin: 0 0 28px; max-width: 42ch; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr)); gap: 14px; }
+  .card { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 20px 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.04rem; letter-spacing: -.01em; }
+  .card p { margin: 0; color: var(--dim); font-size: .95rem; line-height: 1.55; }
+
+  .shots { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .shots img { width: min(100%, 360px); height: auto; border-radius: 10px; box-shadow: 0 18px 44px rgba(0,0,0,.35); }
+
+  table { width: 100%; border-collapse: collapse; font-size: .96rem; }
+  td { padding: 12px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  td:first-child { color: var(--dim); width: 34%; padding-right: 16px; }
+  tr:last-child td { border-bottom: 1px solid var(--line); }
+
+  .how { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 22px 6px; }
+  .how p { margin: 0 0 16px; color: var(--dim); }
+  .how p b { color: var(--text); font-weight: 600; }
+
+  footer { padding: 84px 0 56px; color: var(--faint); font-size: .9rem; text-align: center; }
+  footer a { color: var(--dim); }
+
+  @media (max-width: 520px) {
+    header.wrap { padding-top: 56px; }
+    td:first-child { width: 40%; }
+    code { white-space: normal; overflow-wrap: anywhere; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <img class="mark" src="img/icon-256.png" alt="" width="128" height="128">
+  <h1>Sonus</h1>
+  <p class="tagline">A volume slider for every app, one click from the tray.</p>
+
+  <div class="cta">
+    <a class="download dl-win" href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe">Download for Windows</a>
+    <a class="download ghost dl-mac" href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">Download for macOS</a>
+  </div>
+  <p class="alt for-win">Windows 10 or later. Also for <a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">macOS</a>.</p>
+  <p class="alt for-mac">or <code>brew install --cask kidchenko/tap/sonus</code></p>
+</header>
+
+<div class="wrap demo" aria-label="Interactive preview of Sonus's mixer">
+  <div class="mixer" id="mixer"></div>
+  <p class="hint">Try it: drag a slider, scroll over a row, or mute an app.</p>
+</div>
+
+<main class="wrap">
+  <section>
+    <h2>The call is too quiet and the music is too loud</h2>
+    <p class="lede">macOS still has no per-app volume at all, and Windows hides its mixer two clicks deep in Settings. Sonus puts every app's level one click from the tray.</p>
+    <div class="grid">
+      <div class="card"><h3>Every app, its own slider</h3><p>Each app playing sound, with its own icon, a slider, a live level meter and a mute button. Chrome's twenty tabs are one row.</p></div>
+      <div class="card"><h3>Switch the output</h3><p>Headphones, speakers, the monitor: pick the device from the top of the panel, or from the menu without opening it.</p></div>
+      <div class="card"><h3>The wheel works</h3><p>Scroll over any row to nudge it, the way you'd turn a knob. Click an app's icon to mute it.</p></div>
+      <div class="card"><h3>Looks like it belongs</h3><p>Fluent sliders on Windows 11 and frosted glass on macOS, in your accent colour, following the light or dark taskbar.</p></div>
+      <div class="card"><h3>Remembers on macOS</h3><p>An app you turned down stays down the next time it plays. Windows already remembers that for itself.</p></div>
+      <div class="card"><h3>Small</h3><p>A single 0.7 MB app with nothing else to install. Asleep in the tray it uses a few MB and no measurable CPU.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>In both themes</h2>
+    <p class="lede">Drawn by the app itself, the way it looks in the tray.</p>
+    <div class="shots">
+      <img src="img/panel-dark.png" alt="The Sonus mixer in dark mode" width="360" height="355">
+      <img src="img/panel-light.png" alt="The Sonus mixer in light mode" width="360" height="355">
+    </div>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <div class="how">
+      <p>On <b>Windows</b>, every app that plays sound opens an audio session, and every session already has its own volume. Sonus drives those sessions through WASAPI, the same machinery as Windows' own Volume Mixer, so a level you set is still there after the app restarts.</p>
+      <p>On <b>macOS</b> there is no such thing, so Sonus builds it. An app whose level you change is captured with a Core Audio <b>process tap</b>, which silences the original, and its sound is played back at the level you chose. An app you never touch plays straight to the speakers as before. This needs macOS 14.2 or later and the System Audio Recording permission, which Sonus asks for the first time it is needed.</p>
+      <p>If Sonus quits, macOS removes its taps with it: an app goes back to full volume, never to silence. Nothing Sonus hears is recorded or leaves your computer.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>From a terminal</h2>
+    <p class="lede">On Windows, the same levels without opening the panel.</p>
+<pre><b>$ sonus list</b>
+Speakers (Realtek(R) Audio)        64%
+  Google Chrome                    38%  playing
+  Spotify                          72%  playing
+  System sounds                   100%
+<b>$ sonus set spotify 30</b>
+Spotify: done
+<b>$ sonus mute chrome</b>
+Google Chrome: done</pre>
+  </section>
+
+  <section>
+    <h2>Install</h2>
+    <table>
+      <tr><td>Windows installer</td><td><a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe">Sonus-Setup.exe</a></td></tr>
+      <tr><td>macOS</td><td><a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">Sonus.dmg</a> (Apple silicon and Intel)</td></tr>
+      <tr><td>Homebrew</td><td><code>brew install --cask kidchenko/tap/sonus</code></td></tr>
+    </table>
+    <p class="alt" style="text-align:left">Windows 10 or later, or macOS 14.2 or later for app volumes. It needs nothing else installed.</p>
+  </section>
+</main>
+
+<footer class="wrap">
+  Made by <a href="https://github.com/kidchenko">kidchenko</a>. MIT licensed.
+  <a href="https://github.com/kidchenko/sonus">Source</a> and
+  <a href="https://github.com/kidchenko/sonus/releases">releases</a> on GitHub.
+</footer>
+
+<script>
+  // Lead with the visitor's platform. Without script both buttons still work.
+  try {
+    var p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+    if (/mac/i.test(p)) document.body.classList.add("os-mac");
+  } catch (e) {}
+
+  // The demo mixer: the panel's rows and behaviours, in HTML.
+  (function () {
+    var SPEAKER = '<path d="M3 9h4l4.5-4v14L7 15H3z"/>';
+    function speaker(v, muted) {
+      if (muted || v <= 0) return SPEAKER + '<path d="m15.5 9 6 6"/><path d="m21.5 9-6 6"/>';
+      var s = SPEAKER;
+      if (v >= 0.34) s += '<path d="M15 9a4 4 0 0 1 0 6"/>';
+      if (v >= 0.67) s += '<path d="M18 6a8 8 0 0 1 0 12"/>';
+      return s;
+    }
+    var rows = [
+      { name: "Speakers (Realtek(R) Audio)", v: 0.64, out: true, live: 0.5 },
+      { name: "Spotify", v: 0.72, color: "#1db954", letter: "S", live: 0.85 },
+      { name: "Google Chrome", v: 0.38, color: "#4f6bed", letter: "G", live: 0.5 },
+      { name: "Discord", v: 0.85, color: "#5865f2", letter: "D", muted: true, live: 0 },
+      { name: "Microsoft Teams", v: 1.0, color: "#6264a7", letter: "T", idle: true, live: 0 }
+    ];
+    var el = document.getElementById("mixer");
+
+    function html() {
+      var h = "";
+      rows.forEach(function (r, i) {
+        if (i === 1) h += '<div class="rule"></div><div class="label">Apps</div>';
+        h += '<div class="row' + (r.muted ? " muted" : "") + (r.idle ? " idle" : "") + '" data-i="' + i + '">' +
+          (r.out ? '<div class="tile out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + speaker(1) + '</svg></div>'
+                 : '<div class="tile" style="background:' + r.color + '" data-mute>' + r.letter + '</div>') +
+          '<div><div class="name' + (r.out ? " dev" : "") + '">' + r.name + '</div>' +
+          '<div class="line"><div class="slider"><div class="track"></div><div class="fill"></div><div class="meter"></div><div class="thumb"></div></div>' +
+          '<div class="num"></div><button class="mute" data-mute aria-label="Mute ' + r.name + '"><svg viewBox="0 0 24 24"></svg></button></div></div></div>';
+      });
+      el.innerHTML = h;
+    }
+
+    function update(i) {
+      var r = rows[i];
+      var row = el.querySelector('.row[data-i="' + i + '"]');
+      var s = row.querySelector(".slider");
+      var w = s.clientWidth, x = 10 + (w - 20) * r.v;
+      row.classList.toggle("muted", !!r.muted || r.v <= 0);
+      s.querySelector(".fill").style.width = Math.max(4, x) + "px";
+      s.querySelector(".thumb").style.left = x + "px";
+      row.querySelector(".num").textContent = Math.round(r.v * 100);
+      row.querySelector(".mute svg").innerHTML = speaker(r.v, r.muted);
+    }
+
+    html();
+    rows.forEach(function (_, i) { update(i); });
+
+    var held = null;
+    function setFrom(i, clientX) {
+      var s = el.querySelector('.row[data-i="' + i + '"] .slider');
+      var b = s.getBoundingClientRect();
+      var v = (clientX - b.left - 10) / Math.max(1, b.width - 20);
+      rows[i].v = Math.round(Math.min(1, Math.max(0, v)) * 100) / 100;
+      rows[i].muted = false;
+      update(i);
+    }
+    el.addEventListener("pointerdown", function (e) {
+      var row = e.target.closest(".row");
+      if (!row) return;
+      var i = Number(row.dataset.i);
+      if (e.target.closest("[data-mute]")) {
+        rows[i].muted = !rows[i].muted;
+        update(i);
+        return;
+      }
+      var s = e.target.closest(".slider");
+      if (!s) return;
+      held = i;
+      s.classList.add("held");
+      s.setPointerCapture(e.pointerId);
+      setFrom(i, e.clientX);
+    });
+    el.addEventListener("pointermove", function (e) { if (held !== null) setFrom(held, e.clientX); });
+    el.addEventListener("pointerup", function () {
+      if (held === null) return;
+      el.querySelector('.row[data-i="' + held + '"] .slider').classList.remove("held");
+      held = null;
+    });
+    el.addEventListener("wheel", function (e) {
+      var row = e.target.closest(".row");
+      if (!row) return;
+      e.preventDefault();
+      var i = Number(row.dataset.i);
+      var r = rows[i];
+      r.v = Math.round(Math.min(1, Math.max(0, r.v + (e.deltaY < 0 ? 0.02 : -0.02))) * 100) / 100;
+      if (e.deltaY < 0) r.muted = false;
+      update(i);
+    }, { passive: false });
+    window.addEventListener("resize", function () { rows.forEach(function (_, i) { update(i); }); });
+
+    // The meters: a little music for the rows that are playing.
+    var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var shown = rows.map(function () { return 0; });
+    var t = 0;
+    function tick() {
+      t += 1;
+      rows.forEach(function (r, i) {
+        var target = r.live ? r.live * (0.55 + 0.45 * Math.abs(Math.sin(t / (5 + i) + i))) * (Math.random() * 0.3 + 0.7) : 0;
+        shown[i] = Math.max(target, shown[i] * 0.8);
+        var row = el.querySelector('.row[data-i="' + i + '"]');
+        var s = row.querySelector(".slider");
+        var x = 10 + (s.clientWidth - 20) * r.v;
+        row.querySelector(".meter").style.width = (x * shown[i]) + "px";
+      });
+      if (!still) setTimeout(tick, 60);
+    }
+    tick();
+  })();
+</script>
+</body>
+</html>

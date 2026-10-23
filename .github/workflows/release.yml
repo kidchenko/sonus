@@ -1,0 +1,171 @@
+name: release
+
+# Push a tag to release:  git tag v0.1.0 && git push origin v0.1.0
+# The tag must match [package].version in Cargo.toml.
+#
+# A manual run (Actions tab) is a dry run: it builds and packages everything
+# and uploads it as run artifacts, but publishes nothing.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      is_release: ${{ steps.v.outputs.is_release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          manifest="$(awk '/^\[/{p=($0=="[package]")} p&&/^version[[:space:]]*=/{split($0,a,"\"");print a[2];exit}' Cargo.toml)"
+          [ -n "$manifest" ] || { echo "::error::no [package].version"; exit 1; }
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v(.+)$ ]]; then
+            v="${BASH_REMATCH[1]}"
+            if [ "$v" != "$manifest" ]; then
+              echo "::error::tag v$v does not match Cargo.toml version $manifest"
+              exit 1
+            fi
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            v="$manifest"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+  macos:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Build universal Sonus.app + DMG
+        run: bash build.sh --universal --dmg
+      - name: Update Homebrew cask
+        run: |
+          v="${{ needs.version.outputs.version }}"
+          sha="$(shasum -a 256 "dist/Sonus-$v.dmg" | cut -d' ' -f1)"
+          sed -i '' -e "s/^  version \".*\"/  version \"$v\"/" \
+                    -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" packaging/homebrew/sonus.rb
+          cat packaging/homebrew/sonus.rb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.dmg
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manifest-homebrew
+          path: packaging/homebrew/sonus.rb
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build installer + sonusble exe
+        shell: pwsh
+        run: .\build.ps1
+      - name: Update Chocolatey and winget manifests
+        shell: pwsh
+        run: |
+          $v = "${{ needs.version.outputs.version }}"
+          $sha = (Get-FileHash "dist\Sonus-Setup-$v.exe" -Algorithm SHA256).Hash
+          $today = Get-Date -Format 'yyyy-MM-dd'
+          # The version the files currently hold is discovered, not assumed.
+          $stale = ([regex]'\d+\.\d+\.\d+').Match(
+            (Get-Content packaging\choco\tools\chocolateyinstall.ps1 -Raw)).Value
+          $pattern = [regex]::Escape($stale)
+
+          (Get-Content packaging\choco\tools\chocolateyinstall.ps1) `
+            -replace "checksum64(\s*)= '.*'", "checksum64`$1= '$sha'" -replace $pattern, $v |
+            Set-Content packaging\choco\tools\chocolateyinstall.ps1
+          Get-ChildItem packaging\winget\*.yaml | ForEach-Object {
+            (Get-Content $_) -replace '^(\s*InstallerSha256:\s*).*$', "`${1}$sha" `
+              -replace $pattern, $v -replace '^(ReleaseDate:\s*).*$', "`${1}$today" |
+              Set-Content $_
+          }
+          choco pack packaging\choco\sonus.nuspec --version $v --outputdirectory dist
+          if ($LASTEXITCODE -ne 0) { throw "choco pack failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*.exe
+            dist/*.nupkg
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manifest-winget
+          path: packaging/winget/*.yaml
+
+  release:
+    needs: [version, macos, windows]
+    if: needs.version.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "{macos,windows}"
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          files=(dist/*.dmg dist/*.exe dist/SHA256SUMS.txt)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
+              --title "Sonus ${TAG#v}" --verify-tag --generate-notes
+          fi
+
+  # Optional: only runs when the CHOCO_API_KEY secret is set. New packages go
+  # through community moderation, so the first push takes a while to appear.
+  chocolatey:
+    needs: [version, release]
+    runs-on: windows-latest
+    env:
+      CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+    steps:
+      - uses: actions/download-artifact@v4
+        if: env.CHOCO_API_KEY != ''
+        with:
+          name: windows
+          path: dist
+      - name: Push to community.chocolatey.org
+        if: env.CHOCO_API_KEY != ''
+        shell: pwsh
+        run: |
+          $pkg = Get-ChildItem dist\*.nupkg | Select-Object -First 1
+          choco push $pkg.FullName --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+
+  # Optional: only runs when the HOMEBREW_TAP_TOKEN secret is set (a token that
+  # can run workflows on kidchenko/homebrew-tap). Without it, the tap's daily
+  # bump picks the release up instead.
+  homebrew:
+    needs: [version, release]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - name: Bump the cask in kidchenko/homebrew-tap
+        if: env.GH_TOKEN != ''
+        run: gh workflow run bump.yml --repo kidchenko/homebrew-tap -f cask=sonus

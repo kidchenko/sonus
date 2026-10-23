@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>sonus</id>
+    <version>0.0.1</version>
+    <packageSourceUrl>https://github.com/kidchenko/sonus/tree/main/packaging/choco</packageSourceUrl>
+    <owners>kidchenko</owners>
+    <title>Sonus</title>
+    <authors>kidchenko</authors>
+    <projectUrl>https://github.com/kidchenko/sonus</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/kidchenko/sonus/main/assets/icon-256.png</iconUrl>
+    <licenseUrl>https://github.com/kidchenko/sonus/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/kidchenko/sonus</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/kidchenko/sonus/issues</bugTrackerUrl>
+    <tags>sonus volume mixer audio sound per-app-volume tray utility</tags>
+    <summary>A volume slider for every app, in the tray</summary>
+    <description><![CDATA[
+A volume mixer one click away in the notification area: a slider for the
+output device and one for every app playing through it.
+
+* Each app with its own icon, slider, live level meter and mute button.
+* Switch the output device (speakers, headphones, a monitor) from the panel
+  or the menu.
+* The mouse wheel over any row nudges it.
+* Follows the taskbar's light or dark theme and your accent colour.
+
+Windows' own Volume Mixer is two clicks deep in Settings. Sonus ships as a
+single small executable with no runtime dependencies.
+]]></description>
+    <releaseNotes>https://github.com/kidchenko/sonus/releases</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
