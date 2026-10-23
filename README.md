@@ -88,7 +88,8 @@ winget install kidchenko.Sonus
 # or
 choco install sonus
 # or
-scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket; scoop install kidchenko/sonus
+scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket
+scoop install kidchenko/sonus
 ```
 
 Or grab [**Sonus-Setup.exe**](https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe)

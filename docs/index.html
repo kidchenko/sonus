@@ -203,6 +203,16 @@
   td:first-child { color: var(--dim); width: 34%; padding-right: 16px; }
   /* The Scoop bucket URL is longer than the column; let it break there. */
   td code { white-space: normal; overflow-wrap: anywhere; }
+  /* Commands that must stay one per line: they scroll sideways on a narrow
+     screen rather than breaking in the middle of a URL. */
+  td pre.cmd {
+    font-size: .78rem; line-height: 1.7; color: var(--text);
+    padding: 8px 12px; border-radius: 8px; white-space: pre; overflow-x: auto;
+  }
+  /* Fixed, so a cell stays its column's width and the block scrolls inside
+     it instead of pushing the table past the edge of the page. */
+  table.install { table-layout: fixed; }
+  table.install td:first-child { width: 24%; }
   tr:last-child td { border-bottom: 1px solid var(--line); }
 
   .how { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 22px 6px; }
@@ -289,10 +299,11 @@ Brave Browser: done</pre>
 
   <section>
     <h2>Install</h2>
-    <table>
+    <table class="install">
       <tr><td>Windows installer</td><td><a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe">Sonus-Setup.exe</a></td></tr>
       <tr><td>winget</td><td><code>winget install kidchenko.Sonus</code></td></tr>
-      <tr><td>Scoop</td><td><code>scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket; scoop install kidchenko/sonus</code></td></tr>
+      <tr><td>Scoop</td><td><pre class="cmd">scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket
+scoop install kidchenko/sonus</pre></td></tr>
       <tr><td>Chocolatey</td><td><code>choco install sonus</code></td></tr>
       <tr><td>macOS</td><td><a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">Sonus.dmg</a> (Apple silicon and Intel)</td></tr>
       <tr><td>Homebrew</td><td><code>brew install --cask kidchenko/tap/sonus</code></td></tr>
