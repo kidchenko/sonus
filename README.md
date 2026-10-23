@@ -84,8 +84,15 @@ only works with `output` there.
 ### Windows
 
 Download [**Sonus-Setup.exe**](https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe).
-Each release also has a portable `sonus-x.y.z-x64.exe`. winget and Chocolatey
-packages are coming.
+Each release also has a portable `sonus-x.y.z-x64.exe`, which
+[Scoop](https://scoop.sh) installs:
+
+```powershell
+scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket
+scoop install kidchenko/sonus
+```
+
+winget and Chocolatey packages are coming.
 
 The app isn't code-signed, so SmartScreen warns you the first time. Click
 **More info → Run anyway**.
