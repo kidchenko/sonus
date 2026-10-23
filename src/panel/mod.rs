@@ -1426,36 +1426,42 @@ pub struct Anchor {
 // ---------------------------------------------------------------------------
 
 /// What `--preview-panel` and `--render-panel` show, and the landing page's
-/// picture. Real icons where this machine has the apps installed.
+/// pictures. The apps are real ones, with their real icons: taken from what is
+/// playing on this machine when it can be, then from where each app usually
+/// installs, and a lettered tile when neither has it.
 pub fn sample(dark: bool, devices: bool) -> (Snapshot, Look, Peaks, bool) {
-    fn app(
-        key: &str,
-        name: &str,
-        paths: &[&str],
-        volume: f32,
-        muted: bool,
-        active: bool,
-    ) -> AppAudio {
-        AppAudio {
+    let live: HashMap<String, String> = crate::audio::Mixer::new()
+        .map(|mut m| {
+            m.snapshot()
+                .apps
+                .into_iter()
+                .filter_map(|a| Some((a.name, a.icon?)))
+                .collect()
+        })
+        .unwrap_or_default();
+    let expand = |p: &str| {
+        let mut p = p.to_string();
+        for var in ["LOCALAPPDATA", "APPDATA", "ProgramFiles"] {
+            p = p.replace(&format!("%{var}%"), &std::env::var(var).unwrap_or_default());
+        }
+        p
+    };
+    let app =
+        |key: &str, name: &str, paths: &[&str], volume: f32, muted: bool, active: bool| AppAudio {
             key: key.into(),
             name: name.into(),
-            icon: paths
-                .iter()
-                .map(|p| {
-                    p.replace(
-                        "%LOCALAPPDATA%",
-                        &std::env::var("LOCALAPPDATA").unwrap_or_default(),
-                    )
-                    .replace("%APPDATA%", &std::env::var("APPDATA").unwrap_or_default())
-                })
-                .find(|p| std::path::Path::new(p).exists()),
+            icon: live.get(name).cloned().or_else(|| {
+                paths
+                    .iter()
+                    .map(|p| expand(p))
+                    .find(|p| std::path::Path::new(p).exists())
+            }),
             volume,
             muted,
             active,
             system: false,
-        }
-    }
-    let snap = Snapshot {
+        };
+    let mut snap = Snapshot {
         output: Some(Output {
             name: "Speakers (Realtek(R) Audio)".into(),
             volume: 0.64,
@@ -1494,7 +1500,8 @@ pub fn sample(dark: bool, devices: bool) -> (Snapshot, Look, Peaks, bool) {
                 "chrome",
                 "Google Chrome",
                 &[
-                    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                    r"%ProgramFiles%\Google\Chrome\Application\chrome.exe",
+                    r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe",
                     "/Applications/Google Chrome.app",
                 ],
                 0.38,
@@ -1502,10 +1509,18 @@ pub fn sample(dark: bool, devices: bool) -> (Snapshot, Look, Peaks, bool) {
                 true,
             ),
             app(
+                "slack",
+                "Slack",
+                &[r"%LOCALAPPDATA%\slack\slack.exe", "/Applications/Slack.app"],
+                0.55,
+                false,
+                false,
+            ),
+            app(
                 "discord",
                 "Discord",
                 &[
-                    r"%LOCALAPPDATA%\Discord\Update.exe",
+                    r"%LOCALAPPDATA%\Discord\app.ico",
                     "/Applications/Discord.app",
                 ],
                 0.85,
@@ -1515,10 +1530,7 @@ pub fn sample(dark: bool, devices: bool) -> (Snapshot, Look, Peaks, bool) {
             app(
                 "teams",
                 "Microsoft Teams",
-                &[
-                    r"C:\Program Files\WindowsApps\MSTeams\ms-teams.exe",
-                    "/Applications/Microsoft Teams.app",
-                ],
+                &["/Applications/Microsoft Teams.app"],
                 1.0,
                 false,
                 false,
@@ -1526,9 +1538,23 @@ pub fn sample(dark: bool, devices: bool) -> (Snapshot, Look, Peaks, bool) {
         ],
         problem: None,
     };
+    // No Chrome here: Brave is the same browser to look at.
+    if let Some(chrome) = snap.apps.iter_mut().find(|a| a.key == "chrome") {
+        if chrome.icon.is_none() {
+            if let Some(brave) = live.get("Brave Browser") {
+                chrome.key = "brave".into();
+                chrome.name = "Brave Browser".into();
+                chrome.icon = Some(brave.clone());
+            }
+        }
+    }
     let peaks = Peaks {
         output: Some(0.55),
-        apps: vec![("spotify".into(), 0.8), ("chrome".into(), 0.45)],
+        apps: vec![
+            ("spotify".into(), 0.8),
+            ("chrome".into(), 0.45),
+            ("brave".into(), 0.45),
+        ],
     };
     let look = Look {
         dark,

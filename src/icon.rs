@@ -93,16 +93,62 @@ const CAP_HY: f32 = 2.4;
 /// stops short of each cap so the cap reads as a separate part even in one
 /// colour.
 fn faders(x: f32, y: f32, stroke: f32, gap: f32) -> (f32, f32) {
+    faders_sized(x, y, stroke, gap, 1.0)
+}
+
+/// [`faders`], with the caps scaled by `cap`: fatter caps for the small app
+/// icons, where the normal ones shrink to a pixel or two.
+fn faders_sized(x: f32, y: f32, stroke: f32, gap: f32, cap: f32) -> (f32, f32) {
+    let geo = Geometry {
+        strips: STRIPS,
+        top: STRIP_TOP,
+        bottom: STRIP_BOTTOM,
+        hx: CAP_HX * cap,
+        hy: CAP_HY * cap,
+        radius: CAP_HY * cap,
+        stroke,
+        gap,
+    };
+    faders_geo(x, y, &geo)
+}
+
+struct Geometry {
+    strips: [(f32, f32); 3],
+    top: f32,
+    bottom: f32,
+    hx: f32,
+    hy: f32,
+    radius: f32,
+    stroke: f32,
+    gap: f32,
+}
+
+/// The 16 and 20 px app icon, drawn on the pixel grid: at 16 px each unit
+/// of the 32 grid is half a pixel, so strips on multiples of 8 and caps two
+/// units high land on whole pixels and stay crisp instead of smearing.
+const TINY: Geometry = Geometry {
+    strips: [(8.0, 20.0), (16.0, 10.0), (24.0, 16.0)],
+    top: 5.0,
+    bottom: 27.0,
+    hx: 3.6,
+    hy: 2.0,
+    radius: 1.0,
+    stroke: 2.0,
+    gap: 2.0,
+};
+
+fn faders_geo(x: f32, y: f32, g: &Geometry) -> (f32, f32) {
     let mut line = f32::MAX;
-    let mut cap = f32::MAX;
-    for (sx, sy) in STRIPS {
-        let c = rounded_box(x, y, sx, sy, CAP_HX, CAP_HY, CAP_HY);
-        cap = cap.min(c);
-        let l = seg(x, y, (sx, STRIP_TOP), (sx, STRIP_BOTTOM)) - stroke / 2.0;
+    let mut cap_d = f32::MAX;
+    let (hx, hy, stroke, gap) = (g.hx, g.hy, g.stroke, g.gap);
+    for (sx, sy) in g.strips {
+        let c = rounded_box(x, y, sx, sy, hx, hy, g.radius);
+        cap_d = cap_d.min(c);
+        let l = seg(x, y, (sx, g.top), (sx, g.bottom)) - stroke / 2.0;
         // Carve the gap around this strip's own cap.
         line = line.min(l.max(-(c - gap)));
     }
-    (line, cap)
+    (line, cap_d)
 }
 
 /// RGBA8, `edge` x `edge`, straight alpha. On macOS it is a template image,
@@ -122,11 +168,37 @@ pub fn render(dark_taskbar: bool, edge: u32) -> Vec<u8> {
 }
 
 /// The application icon: cream faders with white caps on a violet tile.
+///
+/// Drawn differently by size, the way a type designer hints a font. At 256 px
+/// there is room for slender faders with a soft drop under each cap; at 16 px,
+/// where Explorer and the taskbar show it, those turn to grey mush, so small
+/// sizes get faders that fill more of the tile, with thicker, solid lines,
+/// fatter caps, and no shadow.
 pub fn render_app(edge: u32) -> Vec<u8> {
     const TOP: Rgb = [0.62, 0.45, 1.0];
     const BOTTOM: Rgb = [0.30, 0.17, 0.78];
     const SHADOW: Rgb = [0.16, 0.07, 0.45];
-    const GLYPH: f32 = 0.66;
+
+    // 0 at 16 px, 1 from 64 px up.
+    let t = ((edge as f32 - 16.0) / 48.0).clamp(0.0, 1.0);
+    let lerp = |small: f32, large: f32| small + (large - small) * t;
+    let glyph = lerp(0.84, 0.66);
+    let stroke = lerp(3.4, 2.0);
+    let cap = lerp(1.25, 1.0);
+    let gap = lerp(1.4, 1.8);
+    let line_ink = lerp(0.85, 0.55);
+    let shadow = edge >= 48;
+    let tiny = edge <= 20;
+    // Small tiles fill their canvas: Windows already pads the icon.
+    let (half, corner) = (lerp(15.5, 15.0), lerp(6.0, 7.0));
+    let draw = |gx: f32, gy: f32| {
+        if tiny {
+            faders_geo(gx, gy, &TINY)
+        } else {
+            faders_sized(gx, gy, stroke, gap, cap)
+        }
+    };
+    let glyph = if tiny { 1.0 } else { glyph };
 
     let tile = |y: f32| {
         let t = (y / 32.0).clamp(0.0, 1.0);
@@ -134,20 +206,20 @@ pub fn render_app(edge: u32) -> Vec<u8> {
     };
     let mix = |a: Rgb, b: Rgb, t: f32| [0, 1, 2].map(|i| a[i] + (b[i] - a[i]) * t);
     supersample(edge, |x, y| {
-        if rounded_box(x, y, 16.0, 16.0, 15.0, 15.0, 7.0) > 0.0 {
+        if rounded_box(x, y, 16.0, 16.0, half, half, corner) > 0.0 {
             return None;
         }
-        let gx = 16.0 + (x - 16.0) / GLYPH;
-        let gy = 16.0 + (y - 16.0) / GLYPH;
-        let (line, cap) = faders(gx, gy, 2.0, 1.8);
+        let gx = 16.0 + (x - 16.0) / glyph;
+        let gy = 16.0 + (y - 16.0) / glyph;
+        let (line, cap_d) = draw(gx, gy);
         let base = tile(y);
-        Some(if cap <= 0.0 {
+        Some(if cap_d <= 0.0 {
             [1.0, 1.0, 1.0]
-        } else if faders(gx, gy - 0.9, 2.0, 1.8).1 <= 0.0 {
+        } else if shadow && draw(gx, gy - 0.9).1 <= 0.0 {
             // A soft drop under each cap, so they sit on the tile.
             mix(base, SHADOW, 0.35)
         } else if line <= 0.0 {
-            mix(base, [1.0, 0.97, 0.92], 0.55)
+            mix(base, [1.0, 0.97, 0.92], line_ink)
         } else {
             base
         })

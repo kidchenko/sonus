@@ -64,6 +64,29 @@ fn main() {
             let dark = args.get(1).map(|t| t != "light").unwrap_or(true);
             panel::preview(dark, 20);
         }
+        // The sample apps' own icons, as raw RGBA, for the landing page's
+        // live demo.
+        #[cfg(windows)]
+        Some("--dump-app-icons") => {
+            let dir = args
+                .get(1)
+                .map(String::as_str)
+                .unwrap_or("target/app-icons");
+            let edge = flag(&args, "--size")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(64);
+            let _ = std::fs::create_dir_all(dir);
+            for a in panel::sample(true, false).0.apps {
+                let Some(px) = a.icon.as_deref().and_then(|p| program_icon::load(p, edge)) else {
+                    eprintln!("{}: no icon", a.name);
+                    continue;
+                };
+                let path = format!("{dir}/{}.rgba", a.key);
+                let _ = std::fs::write(&path, px);
+                let _ = std::fs::write(format!("{path}.size"), format!("{edge} {edge}"));
+                println!("{path}");
+            }
+        }
         // Renders the panel to raw RGBA without ever putting it on screen, for
         // the landing page and for looking at a change.
         Some("--render-panel") => {

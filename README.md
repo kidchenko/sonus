@@ -177,8 +177,11 @@ Rust 1.77 or newer.
 
 `sonus --render-panel target/panel.rgba --theme light --scale 2` draws the panel
 offscreen with sample content, and `python assets/panel_png.py` turns that into
-a PNG: that's where the pictures above come from. `sonus --preview-panel` holds
-it on screen to play with.
+a PNG: that's where the pictures above come from, with the real icons of
+whichever sample apps (Spotify, Chrome or Brave, Slack, Discord, Teams) this
+machine has. `sonus --dump-app-icons docs/img/apps` exports those icons for the
+landing page's demo, and `sonus --preview-panel` holds the panel on screen to
+play with.
 
 ## Releasing
 
