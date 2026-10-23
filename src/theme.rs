@@ -26,7 +26,7 @@ mod imp {
     /// Deliberately `SystemUsesLightTheme` and not `AppsUseLightTheme`: the two
     /// are set independently, and everything we draw opens from the
     /// notification area. Windows' own flyouts (volume, network) follow the
-    /// taskbar too, so a light-app/dark-taskbar user — a common combination —
+    /// taskbar too, so a light-app/dark-taskbar user (a common combination)
     /// gets a panel that matches its neighbours.
     ///
     /// Defaults to dark when the value is missing: that is the Windows 11
@@ -105,7 +105,7 @@ mod imp {
     /// True when the menu bar is dark.
     ///
     /// `AppleInterfaceStyle` in the global defaults is the string `"Dark"` in
-    /// dark mode and absent entirely in light mode — the same signal the menu
+    /// dark mode and absent entirely in light mode: the same signal the menu
     /// bar follows. Absent therefore means light, which is why this defaults to
     /// `false` where the Windows side defaults to `true`.
     pub fn taskbar_is_dark() -> bool {

@@ -88,7 +88,7 @@ unsafe fn rgba(icon: HICON) -> Option<(Vec<u8>, u32)> {
     if lines == 0 {
         return None;
     }
-    // BGRA → RGBA. Icons from before alpha channels have none at all; for
+    // BGRA to RGBA. Icons from before alpha channels have none at all; for
     // those, any coloured pixel is opaque.
     let has_alpha = px.chunks(4).any(|p| p[3] != 0);
     for p in px.chunks_mut(4) {

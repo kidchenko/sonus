@@ -28,7 +28,7 @@ fn len(x: f32, y: f32) -> f32 {
     (x * x + y * y).sqrt()
 }
 
-/// Distance to the segment a–b. Stroked with `- width / 2`, which gives round
+/// Distance to the segment from a to b. Stroked with `- width / 2`, which gives round
 /// caps for free.
 fn seg(x: f32, y: f32, a: (f32, f32), b: (f32, f32)) -> f32 {
     let (px, py) = (x - a.0, y - a.1);
@@ -127,7 +127,7 @@ pub fn render(dark_taskbar: bool, edge: u32) -> Vec<u8> {
 ///
 /// One mark, hinted by size the way a type designer hints a font: five bars
 /// where there is room for them, three on the pixel grid where there is not.
-/// The silhouette — tallest in the middle, falling away either side — is the
+/// The silhouette (tallest in the middle, falling away either side) is the
 /// same at every size, so the 16 px icon in Explorer and the 1024 px one in
 /// the Dock are recognisably one thing.
 pub fn render_app(edge: u32) -> Vec<u8> {

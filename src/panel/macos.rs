@@ -7,7 +7,7 @@
 //! On top of it, one flipped view paints the commands [`Ui`] produces and
 //! hands it the mouse.
 //!
-//! Everything here runs on the main thread — AppKit demands it — so state
+//! Everything here runs on the main thread (AppKit demands it), so state
 //! lives in `thread_local`s, exactly as on Windows.
 
 use super::*;
@@ -93,7 +93,7 @@ define_class!(
     struct PanelView;
 
     impl PanelView {
-        // Top-left origin, y down — the coordinate system the layout uses.
+        // Top-left origin, y down: the coordinate system the layout uses.
         #[unsafe(method(isFlipped))]
         fn is_flipped(&self) -> bool {
             true
@@ -355,7 +355,7 @@ impl Panel {
         UI.with(|u| u.borrow_mut().set_wheel_step(percent));
     }
 
-    /// Show the panel hanging from the menu bar, under the pointer — which is
+    /// Show the panel hanging from the menu bar, under the pointer, which is
     /// over the status item that was just clicked.
     pub fn show(&self, model: Snapshot, look: Look, _anchor: Option<Anchor>) {
         UI.with(|u| u.borrow_mut().open(model, look));
@@ -766,7 +766,7 @@ pub fn render_to_rgba(
 }
 
 /// Show the panel with sample content and pump the run loop until the
-/// timeout, so the rendering can be looked at — and moved, clicked, dragged.
+/// timeout, so the rendering can be looked at, and moved, clicked, dragged.
 pub fn preview(dark: bool, seconds: u64) {
     let Some(mtm) = MainThreadMarker::new() else {
         return;

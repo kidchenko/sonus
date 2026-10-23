@@ -2,7 +2,7 @@
 
 The PNGs in `glyph/` are rasterised by `make.sh` from Lucide 0.545.0.
 
-## glyph/ — Lucide 0.545.0
+## glyph/: Lucide 0.545.0
 
 https://github.com/lucide-icons/lucide
 

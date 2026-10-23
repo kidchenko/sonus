@@ -408,10 +408,11 @@ impl App {
     }
 
     fn update_tooltip(&mut self) {
+        // Two lines: the app, then the device and its level.
         let text = match &self.snapshot.output {
-            Some(o) if o.muted => format!("Sonus \u{2014} {}, muted", o.name),
-            Some(o) => format!("Sonus \u{2014} {} {:.0}%", o.name, o.volume * 100.0),
-            None => "Sonus \u{2014} no output device".into(),
+            Some(o) if o.muted => format!("Sonus\n{}, muted", o.name),
+            Some(o) => format!("Sonus\n{}, {:.0}%", o.name, o.volume * 100.0),
+            None => "Sonus\nNo output device".into(),
         };
         if text == self.tooltip {
             return;

@@ -18,7 +18,7 @@
 //!
 //! Taps need the "System Audio Recording" permission (Privacy & Security).
 //! It is checked before any tap is made, because a tap made without it reads
-//! silence — and with the original muted, that would silence the app.
+//! silence, and with the original muted, that would silence the app.
 //!
 //! The tap API is looked up at run time rather than linked, so on an older
 //! macOS the app still starts, with the device controls only.
@@ -638,7 +638,7 @@ struct Group {
     active: bool,
 }
 
-/// "/Applications/Docker.app/Contents/MacOS/com.docker.backend" →
+/// "/Applications/Docker.app/Contents/MacOS/com.docker.backend" becomes
 /// "/Applications/Docker.app". The outermost bundle, so a helper app nested
 /// inside another shows the app people know.
 fn app_bundle(exe: &str) -> Option<&str> {

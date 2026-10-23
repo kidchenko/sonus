@@ -2,8 +2,8 @@
 //! for every app playing through it.
 //!
 //! This module is everything that does not care how pixels reach the screen.
-//! [`Ui`] owns the model, the layout, the hit-testing and the interaction —
-//! dragging a slider, the wheel, the device list — and turns all of it into a
+//! [`Ui`] owns the model, the layout, the hit-testing and the interaction
+//! (dragging a slider, the wheel, the device list) and turns all of it into a
 //! flat list of drawing commands ([`Cmd`]). The platform submodules own a
 //! window, forward the mouse to [`Ui`], and paint the commands: Direct2D on
 //! Windows, AppKit on macOS. One layout, one set of behaviours, two painters,
@@ -112,7 +112,7 @@ impl Look {
 }
 
 /// The colours, from Fluent's tokens on Windows and AppKit's label colours on
-/// macOS — so the panel reads as part of the OS rather than a skin on it.
+/// macOS, so the panel reads as part of the OS.
 pub struct Palette {
     /// Windows only: macOS has its material there instead.
     #[cfg_attr(target_os = "macos", allow(dead_code))]
@@ -1039,7 +1039,7 @@ impl Ui {
             let (title, body) = match problem {
                 Problem::NeedsPermission => (
                     "Sonus needs a permission",
-                    "To change each app\u{2019}s volume, allow Sonus under Privacy & Security \u{203a} Screen & System Audio Recording.",
+                    "To change each app's volume, allow Sonus under Privacy & Security \u{203a} Screen & System Audio Recording.",
                 ),
                 Problem::Unsupported => (
                     "App volumes need macOS 14.2",
@@ -1208,7 +1208,7 @@ impl Ui {
             });
         }
         // The meter: how loud it is right now, as a brighter band inside the
-        // fill — so the slider says both where it is set and what it is doing.
+        // fill, so the slider says both where it is set and what it is doing.
         if !silent && peak > 0.01 {
             let w = (tx - s.x) * peak.clamp(0.0, 1.0);
             if w > 1.0 {
@@ -1398,7 +1398,7 @@ pub(crate) enum Toggle {
 }
 
 /// Clicking the tray icon while the panel is open takes the focus away from it,
-/// so the platform hides it *before* the click event reaches us — at which point
+/// so the platform hides it *before* the click event reaches us, at which point
 /// a naive toggle sees a hidden panel and reopens the thing the user was trying
 /// to dismiss. So the panel remembers when it last went away and declines to
 /// come straight back.

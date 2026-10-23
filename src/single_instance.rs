@@ -27,7 +27,7 @@ mod imp {
     };
 
     // "Local\" scopes both objects to the logon session, so two users signed in
-    // at once each get their own instance rather than fighting over one — which
+    // at once each get their own instance rather than fighting over one, which
     // matters here, because each session has its own audio sessions.
     const MUTEX_NAME: &str = r"Local\Sonus.SingleInstance";
     const EVENT_NAME: &str = r"Local\Sonus.Summon";

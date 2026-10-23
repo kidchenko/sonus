@@ -6,8 +6,8 @@
 //! drawn with, so the sliders and the text come out looking like theirs. Both
 //! ship with Windows; nothing is bundled.
 //!
-//! Everything here runs on the UI thread — the window is created on it, painted
-//! on it, and its messages are pumped by tao's event loop — so state lives in
+//! Everything here runs on the UI thread. The window is created on it, painted
+//! on it, and its messages are pumped by tao's event loop, so state lives in
 //! `thread_local`s rather than behind locks.
 
 use super::*;
@@ -354,7 +354,7 @@ fn place_in(at: POINT, anchor_h: i32, w: i32, h: i32, area: RECT) -> (i32, i32, 
 
     let min_y = area.top + EDGE_GAP;
     let max_y = (area.bottom - h - EDGE_GAP).max(min_y);
-    // Above if there is room, below otherwise — the taskbar can be at the top.
+    // Above if there is room, below otherwise: the taskbar can be at the top.
     let above = at.y - h - EDGE_GAP >= area.top;
     let y = if above {
         // Level with Windows' own flyouts: just clear of the taskbar.
@@ -1023,7 +1023,7 @@ fn bitmap(target: &ID2D1RenderTarget, rgba: &[u8], edge: u32) -> Option<ID2D1Bit
 
 /// Draw the panel straight into memory and hand back its pixels, as
 /// `(width, height, straight-alpha RGBA)`. The same painter as the live panel,
-/// onto a DIB nothing else has touched — a screenshot would carry whatever
+/// onto a DIB nothing else has touched. A screenshot would carry whatever
 /// was behind the window and whatever DPI the screen happens to be at.
 pub fn render_to_rgba(
     (model, look, peaks, devices): (Snapshot, Look, Peaks, bool),
@@ -1129,7 +1129,7 @@ pub fn render_to_rgba(
 }
 
 /// Show the panel with sample content and pump messages until the timeout, so
-/// the rendering can actually be looked at — and moved, clicked and dragged.
+/// the rendering can actually be looked at, and moved, clicked and dragged.
 pub fn preview(dark: bool, seconds: u64) {
     let (model, look, peaks, _) = sample(dark, false);
     let Ok(panel) = Panel::new(Box::new(|a| eprintln!("{a:?}"))) else {

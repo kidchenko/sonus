@@ -52,7 +52,7 @@ impl Default for Config {
 
 impl Config {
     /// `%APPDATA%\Sonus` on Windows, `~/Library/Application Support/Sonus` on
-    /// macOS — the per-user, per-app spot each platform expects.
+    /// macOS: the per-user, per-app spot each platform expects.
     #[cfg(windows)]
     pub fn dir() -> Option<PathBuf> {
         std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("Sonus"))
@@ -77,7 +77,7 @@ impl Config {
     ///
     /// `None` covers both "not there" and "could not be parsed". A caller
     /// reacting to a change on disk wants to leave the running config alone in
-    /// either case — an editor caught mid-save must not reset anyone's
+    /// either case: an editor caught mid-save must not reset anyone's
     /// settings.
     pub fn reload() -> Option<Self> {
         let text = std::fs::read_to_string(Self::path()?).ok()?;

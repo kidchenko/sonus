@@ -44,7 +44,7 @@ done
   echo
   echo "The PNGs in \`glyph/\` are rasterised by \`make.sh\` from Lucide $LUCIDE."
   echo
-  echo "## glyph/ — Lucide $LUCIDE"
+  echo "## glyph/: Lucide $LUCIDE"
   echo
   echo "https://github.com/lucide-icons/lucide"
   echo

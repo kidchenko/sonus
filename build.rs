@@ -1,5 +1,5 @@
 fn main() {
-    // Only builds — and only compiles — on a Windows host: `winresource` is a
+    // Only builds (and only compiles) on a Windows host. `winresource` is a
     // build-dependency under `cfg(windows)`, and a build script's cfg matches
     // the host it runs on. The Windows release is produced on Windows anyway.
     #[cfg(windows)]
