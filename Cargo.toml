@@ -2,7 +2,7 @@
 name         = "sonus"
 version      = "0.0.1"
 edition      = "2021"
-rust-version = "1.77"
+rust-version = "1.90"
 description  = "A volume slider for every app, in the tray"
 authors      = ["kidchenko <kidchenko@gmail.com>"]
 license      = "MIT"

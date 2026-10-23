@@ -1,5 +1,11 @@
 name: release
 
+# One release, both packages. A pushed v* tag fans out to a macOS runner and a
+# Windows runner — each builds its own native package on its own OS, the thing
+# you cannot do by cross-compiling — and a final job bundles both into a single
+# GitHub Release. So every release carries Sonus.dmg and Sonus-Setup.exe without
+# anyone building on two machines by hand.
+#
 # Push a tag to release:  git tag v0.1.0 && git push origin v0.1.0
 # The tag must match [package].version in Cargo.toml.
 #
@@ -11,8 +17,13 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Read-only by default; the one job that publishes asks for more.
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   version:
@@ -50,22 +61,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build universal Sonus.app + DMG
         run: bash build.sh --universal --dmg
-      - name: Update Homebrew cask
-        run: |
-          v="${{ needs.version.outputs.version }}"
-          sha="$(shasum -a 256 "dist/Sonus-$v.dmg" | cut -d' ' -f1)"
-          sed -i '' -e "s/^  version \".*\"/  version \"$v\"/" \
-                    -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" packaging/homebrew/sonus.rb
-          cat packaging/homebrew/sonus.rb
       - uses: actions/upload-artifact@v4
         with:
           name: macos
           path: dist/*.dmg
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
-          name: manifest-homebrew
-          path: packaging/homebrew/sonus.rb
 
   windows:
     needs: version
@@ -76,7 +76,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
-      - name: Build installer + sonusble exe
+      - name: Build installer + portable exe
         shell: pwsh
         run: .\build.ps1
       - name: Update Chocolatey and winget manifests
@@ -116,6 +116,8 @@ jobs:
     needs: [version, macos, windows]
     if: needs.version.outputs.is_release == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -123,7 +125,8 @@ jobs:
           pattern: "{macos,windows}"
           merge-multiple: true
       - name: Checksums
-        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+        # Only what gets attached to the release; the .nupkg goes to Chocolatey.
+        run: cd dist && sha256sum -- *.dmg *.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -168,4 +171,11 @@ jobs:
     steps:
       - name: Bump the cask in kidchenko/homebrew-tap
         if: env.GH_TOKEN != ''
-        run: gh workflow run bump.yml --repo kidchenko/homebrew-tap -f cask=sonus
+        run: |
+          # A new app's first release comes before its cask, which the tap's CI
+          # can only install once there is a release to download.
+          if ! gh api repos/kidchenko/homebrew-tap/contents/Casks/sonus.rb --silent 2>/dev/null; then
+            echo "::notice::kidchenko/homebrew-tap has no sonus cask yet; add it, then the daily bump keeps it current"
+            exit 0
+          fi
+          gh workflow run bump.yml --repo kidchenko/homebrew-tap -f cask=sonus

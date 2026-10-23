@@ -86,7 +86,7 @@ if ($Icons) {
 
 New-Item -ItemType Directory -Force (Join-Path $PSScriptRoot 'dist') | Out-Null
 Copy-Item $exe (Join-Path $PSScriptRoot "dist\sonus-$version-x64.exe") -Force
-Ok "dist\sonus-$version-x64.exe (sonusble)"
+Ok "dist\sonus-$version-x64.exe (portable)"
 
 if (-not $SkipInstaller) {
   $iscc = Find 'iscc' @(
