@@ -446,7 +446,7 @@ impl App {
             .collect();
 
         let menu = Menu::new();
-        let _ = menu.append(&drawn_item(ID_PANEL, "Show mixer", Glyph::Faders));
+        let _ = menu.append(&drawn_item(ID_PANEL, "Show mixer", Glyph::Mark));
         let _ = menu.append(&PredefinedMenuItem::separator());
 
         // The output device, here as well as in the panel: switching to the

@@ -15,7 +15,7 @@ On Windows and macOS.
 
 The call is too quiet and the music is too loud. macOS still has no per-app
 volume at all, and Windows keeps its Volume Mixer two clicks deep in
-Settings. Sonus is a set of faders in the tray: click it, and every app playing
+Settings. Sonus is a waveform in the tray: click it, and every app playing
 sound has its own slider, live level meter and mute button, with the output
 device at the top.
 
@@ -29,7 +29,7 @@ uses a few MB of memory and no measurable CPU.
 
 ## The panel
 
-Left-click the faders to open it; click anywhere else, or press Esc, to close
+Left-click the waveform to open it; click anywhere else, or press Esc, to close
 it.
 
 | | |
@@ -46,7 +46,7 @@ macOS it sits on the same frosted material as the menu bar's menus.
 
 ## The menu
 
-Right-click the faders:
+Right-click the waveform:
 
 ```
       Show mixer

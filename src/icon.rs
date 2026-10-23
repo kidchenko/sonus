@@ -3,13 +3,13 @@
 //!
 //! | what        | picture                                              |
 //! |-------------|------------------------------------------------------|
-//! | tray        | three mixer faders, at three different levels        |
-//! | app icon    | the same faders, on a violet tile                    |
+//! | tray        | a waveform: three bars, tallest in the middle        |
+//! | app icon    | the same waveform, white on a violet tile            |
 //! | glyphs      | speaker (with waves, or crossed out), chevron, check |
 //!
 //! Drawn from signed distance functions, like the other apps in this family:
 //! crisp at any size and any DPI, no image decoder, no art files to keep in
-//! step. The faders are not a speaker on purpose: the OS already has a speaker
+//! step. The mark is not a speaker on purpose: the OS already has a speaker
 //! in the tray, right next to this one.
 
 /// What the tray asks for. Windows downsamples to the notification-area size
@@ -77,82 +77,37 @@ fn arc(x: f32, y: f32, c: (f32, f32), r: f32, half: f32) -> f32 {
 }
 
 // ---------------------------------------------------------------------------
-// The faders (tray and app icon)
+// The mark: a waveform (tray and app icon)
 // ---------------------------------------------------------------------------
 
-/// Fader positions on a 32 grid: the three channel strips and where each cap
-/// sits. Different heights on purpose, so it reads as a mixer rather than as
-/// three bars of a level meter.
-const STRIPS: [(f32, f32); 3] = [(8.0, 20.0), (16.0, 10.5), (24.0, 16.5)];
-const STRIP_TOP: f32 = 4.0;
-const STRIP_BOTTOM: f32 = 28.0;
-const CAP_HX: f32 = 3.9;
-const CAP_HY: f32 = 2.4;
+/// One bar of the waveform on the 32 grid: (centre x, half width, half height),
+/// every bar centred on y = 16. The heights differ, tallest in the middle, so
+/// it reads as sound with several levels in it, which is what Sonus is.
+type Bar = (f32, f32, f32);
 
-/// (line, cap) distances for the faders at `x, y` on the 32 grid. The line
-/// stops short of each cap so the cap reads as a separate part even in one
-/// colour.
-fn faders(x: f32, y: f32, stroke: f32, gap: f32) -> (f32, f32) {
-    faders_sized(x, y, stroke, gap, 1.0)
-}
+/// Three bars, for everything up to 40 px. Every edge is an even number of
+/// grid units, so at 16 px (two units a pixel) and at 32 px each bar is two
+/// whole pixels wide, two apart, and stays sharp instead of smearing.
+const THREE: [Bar; 3] = [(8.0, 2.0, 6.0), (16.0, 2.0, 10.0), (24.0, 2.0, 4.0)];
 
-/// [`faders`], with the caps scaled by `cap`: fatter caps for the small app
-/// icons, where the normal ones shrink to a pixel or two.
-fn faders_sized(x: f32, y: f32, stroke: f32, gap: f32, cap: f32) -> (f32, f32) {
-    let geo = Geometry {
-        strips: &STRIPS,
-        top: STRIP_TOP,
-        bottom: STRIP_BOTTOM,
-        hx: CAP_HX * cap,
-        hy: CAP_HY * cap,
-        radius: CAP_HY * cap,
-        stroke,
-        gap,
-    };
-    faders_geo(x, y, &geo)
-}
+/// The tray's three, taller: tray icons share a keyline about 24 px high in a
+/// 32 px canvas with their neighbours (Cota's ring, Porta's door).
+const TRAY: [Bar; 3] = [(8.0, 2.0, 6.0), (16.0, 2.0, 12.0), (24.0, 2.0, 4.0)];
 
-struct Geometry {
-    strips: &'static [(f32, f32)],
-    top: f32,
-    bottom: f32,
-    hx: f32,
-    hy: f32,
-    radius: f32,
-    stroke: f32,
-    gap: f32,
-}
+/// Five bars, for 48 px and up, where there is room for the full waveform.
+const FIVE: [Bar; 5] = [
+    (6.0, 1.6, 4.0),
+    (11.0, 1.6, 8.0),
+    (16.0, 1.6, 12.0),
+    (21.0, 1.6, 7.0),
+    (26.0, 1.6, 3.5),
+];
 
-/// The 16 and 20 px app icon: one fader rather than three. Three faders in
-/// 16 pixels is three smudges; one, with a 2 px line and a cap half the tile
-/// wide, still says "volume". Drawn on the pixel grid: at 16 px each unit of
-/// the 32 grid is half a pixel, so these numbers land on whole pixels and stay
-/// crisp instead of smearing.
-const TINY: Geometry = Geometry {
-    // Below the middle, so it reads as a fader set somewhere rather than a
-    // plus or a divide sign.
-    strips: &[(16.0, 19.0)],
-    top: 6.0,
-    bottom: 26.0,
-    hx: 8.0,
-    hy: 3.0,
-    radius: 2.5,
-    stroke: 4.0,
-    gap: 2.0,
-};
-
-fn faders_geo(x: f32, y: f32, g: &Geometry) -> (f32, f32) {
-    let mut line = f32::MAX;
-    let mut cap_d = f32::MAX;
-    let (hx, hy, stroke, gap) = (g.hx, g.hy, g.stroke, g.gap);
-    for &(sx, sy) in g.strips {
-        let c = rounded_box(x, y, sx, sy, hx, hy, g.radius);
-        cap_d = cap_d.min(c);
-        let l = seg(x, y, (sx, g.top), (sx, g.bottom)) - stroke / 2.0;
-        // Carve the gap around this strip's own cap.
-        line = line.min(l.max(-(c - gap)));
-    }
-    (line, cap_d)
+/// Distance to the nearest bar, each a capsule (fully rounded ends).
+fn bars(x: f32, y: f32, set: &[Bar]) -> f32 {
+    set.iter()
+        .map(|&(cx, hw, hh)| rounded_box(x, y, cx, 16.0, hw, hh, hw))
+        .fold(f32::MAX, f32::min)
 }
 
 /// RGBA8, `edge` x `edge`, straight alpha. On macOS it is a template image,
@@ -165,68 +120,36 @@ pub fn render(dark_taskbar: bool, edge: u32) -> Vec<u8> {
     } else {
         [0.12, 0.12, 0.12]
     };
-    supersample(edge, |x, y| {
-        let (line, cap) = faders(x, y, 2.4, 1.6);
-        (line <= 0.0 || cap <= 0.0).then_some(ink)
-    })
+    supersample(edge, |x, y| (bars(x, y, &TRAY) <= 0.0).then_some(ink))
 }
 
-/// The application icon: cream faders with white caps on a violet tile.
+/// The application icon: a white waveform on a violet tile.
 ///
-/// Drawn differently by size, the way a type designer hints a font. At 256 px
-/// there is room for slender faders with a soft drop under each cap; at 16 px,
-/// where Explorer and the taskbar show it, those turn to grey mush, so small
-/// sizes get faders that fill more of the tile, with thicker, solid lines,
-/// fatter caps, and no shadow.
+/// One mark, hinted by size the way a type designer hints a font: five bars
+/// where there is room for them, three on the pixel grid where there is not.
+/// The silhouette — tallest in the middle, falling away either side — is the
+/// same at every size, so the 16 px icon in Explorer and the 1024 px one in
+/// the Dock are recognisably one thing.
 pub fn render_app(edge: u32) -> Vec<u8> {
     const TOP: Rgb = [0.62, 0.45, 1.0];
     const BOTTOM: Rgb = [0.30, 0.17, 0.78];
-    const SHADOW: Rgb = [0.16, 0.07, 0.45];
 
-    // 0 at 16 px, 1 from 64 px up.
-    let t = ((edge as f32 - 16.0) / 48.0).clamp(0.0, 1.0);
-    let lerp = |small: f32, large: f32| small + (large - small) * t;
-    let glyph = lerp(0.84, 0.66);
-    let stroke = lerp(3.4, 2.0);
-    let cap = lerp(1.25, 1.0);
-    let gap = lerp(1.4, 1.8);
-    let line_ink = lerp(0.85, 0.55);
-    let shadow = edge >= 48;
-    let tiny = edge <= 20;
+    let small = edge <= 40;
     // Small tiles fill their canvas: Windows already pads the icon.
-    let (half, corner) = (lerp(15.5, 15.0), lerp(6.0, 7.0));
-    let draw = |gx: f32, gy: f32| {
-        if tiny {
-            faders_geo(gx, gy, &TINY)
-        } else {
-            faders_sized(gx, gy, stroke, gap, cap)
-        }
-    };
-    let glyph = if tiny { 1.0 } else { glyph };
+    let (half, corner) = if edge <= 24 { (15.5, 6.0) } else { (15.0, 7.0) };
+    let (set, scale): (&[Bar], f32) = if small { (&THREE, 1.0) } else { (&FIVE, 0.8) };
 
-    let tile = |y: f32| {
-        let t = (y / 32.0).clamp(0.0, 1.0);
-        [0, 1, 2].map(|i| TOP[i] + (BOTTOM[i] - TOP[i]) * t)
-    };
-    let mix = |a: Rgb, b: Rgb, t: f32| [0, 1, 2].map(|i| a[i] + (b[i] - a[i]) * t);
     supersample(edge, |x, y| {
         if rounded_box(x, y, 16.0, 16.0, half, half, corner) > 0.0 {
             return None;
         }
-        let gx = 16.0 + (x - 16.0) / glyph;
-        let gy = 16.0 + (y - 16.0) / glyph;
-        let (line, cap_d) = draw(gx, gy);
-        let base = tile(y);
-        Some(if cap_d <= 0.0 {
-            [1.0, 1.0, 1.0]
-        } else if shadow && draw(gx, gy - 0.9).1 <= 0.0 {
-            // A soft drop under each cap, so they sit on the tile.
-            mix(base, SHADOW, 0.35)
-        } else if line <= 0.0 {
-            mix(base, [1.0, 0.97, 0.92], line_ink)
-        } else {
-            base
-        })
+        let gx = 16.0 + (x - 16.0) / scale;
+        let gy = 16.0 + (y - 16.0) / scale;
+        if bars(gx, gy, set) <= 0.0 {
+            return Some([1.0, 1.0, 1.0]);
+        }
+        let t = (y / 32.0).clamp(0.0, 1.0);
+        Some([0, 1, 2].map(|i| TOP[i] + (BOTTOM[i] - TOP[i]) * t))
     })
 }
 
@@ -278,7 +201,8 @@ pub enum Glyph {
     ChevronDown,
     ChevronUp,
     Check,
-    Faders,
+    /// The Sonus mark.
+    Mark,
 }
 
 const SPEAKER: [(f32, f32); 6] = [
@@ -317,10 +241,9 @@ fn glyph_distance(g: Glyph, x: f32, y: f32) -> f32 {
         Glyph::Check => {
             seg(x, y, (5.0, 12.5), (9.5, 17.0)).min(seg(x, y, (9.5, 17.0), (19.0, 7.0))) - W
         }
-        Glyph::Faders => {
-            // The tray's faders, brought onto the 24 grid.
-            let (line, cap) = faders(x * 32.0 / 24.0, y * 32.0 / 24.0, 2.6, 1.6);
-            line.min(cap) * 24.0 / 32.0
+        Glyph::Mark => {
+            // The tray's waveform, brought onto the 24 grid.
+            bars(x * 32.0 / 24.0, y * 32.0 / 24.0, &TRAY) * 24.0 / 32.0
         }
     }
 }
@@ -372,7 +295,7 @@ pub fn dump(dir: &str) -> std::io::Result<()> {
     for (theme, dark) in [("dark", true), ("light", false)] {
         for edge in [EDGE, 128] {
             std::fs::write(
-                format!("{dir}/tray-faders-{theme}-{edge}.rgba"),
+                format!("{dir}/tray-{theme}-{edge}.rgba"),
                 render(dark, edge),
             )?;
         }
@@ -387,7 +310,7 @@ pub fn dump(dir: &str) -> std::io::Result<()> {
         ("speaker-muted", Glyph::SpeakerMuted),
         ("chevron-down", Glyph::ChevronDown),
         ("check", Glyph::Check),
-        ("faders", Glyph::Faders),
+        ("mark", Glyph::Mark),
     ] {
         std::fs::write(format!("{dir}/glyph-{name}-96.rgba"), glyph(g, 96, 0))?;
     }
@@ -411,13 +334,22 @@ mod tests {
     }
 
     #[test]
-    fn the_caps_are_drawn_apart_from_their_lines() {
-        // Just above the middle strip's cap, inside the carved gap: empty.
-        let (line, cap) = faders(16.0, 10.5 - CAP_HY - 0.8, 2.4, 1.6);
-        assert!(line > 0.0 && cap > 0.0);
-        // Well above it, on the line.
-        let (line, _) = faders(16.0, 6.0, 2.4, 1.6);
-        assert!(line <= 0.0);
+    fn the_small_bars_land_on_whole_pixels() {
+        // At 16 px every bar pixel is fully on or fully off: no grey fringe.
+        let px = render_app(16);
+        let (cx, cy) = (8u32, 8u32);
+        let at = |x: u32, y: u32| px[((y * 16 + x) * 4) as usize..][..3].to_vec();
+        assert_eq!(at(cx, cy), vec![255, 255, 255], "the middle bar is white");
+        let tile = at(cx + 2, cy);
+        assert!(tile[0] < 200, "the gap beside it is tile, not a blur");
+    }
+
+    #[test]
+    fn the_waveform_is_tallest_in_the_middle() {
+        for set in [&THREE[..], &TRAY[..], &FIVE[..]] {
+            let tallest = set.iter().map(|b| b.2).fold(0.0, f32::max);
+            assert_eq!(set[set.len() / 2].2, tallest);
+        }
     }
 
     #[test]
@@ -437,7 +369,7 @@ mod tests {
             Glyph::ChevronDown,
             Glyph::ChevronUp,
             Glyph::Check,
-            Glyph::Faders,
+            Glyph::Mark,
         ] {
             assert!(ink(&glyph(g, 32, 2)) > 0, "{g:?}");
         }

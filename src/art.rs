@@ -1,7 +1,7 @@
 //! The menu's glyphs. The general ones come from Lucide (ISC,
 //! https://lucide.dev), the same set Café, Porta and Cota use;
 //! `assets/icons/make.sh` rasterises them to 32 px PNGs, black on clear, which
-//! are compiled in. The audio ones (faders, speaker) are drawn by `icon.rs`,
+//! are compiled in. The audio ones (the mark, the speaker) are drawn by `icon.rs`,
 //! on the same grid and stroke, so the two kinds sit together.
 
 use crate::icon::{self, Glyph};
@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn drawn_glyphs_build() {
-        assert!(drawn(Glyph::Faders).is_some());
+        assert!(drawn(Glyph::Mark).is_some());
         assert!(drawn(Glyph::Speaker(2)).is_some());
     }
 }

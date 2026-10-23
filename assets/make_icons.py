@@ -67,7 +67,11 @@ def main(dump: pathlib.Path) -> None:
         assert len(data) == edge * edge * 4, f"{name}-{edge}: wrong size"
         return data
 
-    (HERE / "icon.ico").write_bytes(ico([(e, png(load("app", e), e)) for e in ICO_SIZES]))
+    # Through a temp file: Explorer holds icon.ico open while it shows the
+    # folder, and a replace succeeds where opening it for writing does not.
+    tmp = HERE / "icon.ico.tmp"
+    tmp.write_bytes(ico([(e, png(load("app", e), e)) for e in ICO_SIZES]))
+    tmp.replace(HERE / "icon.ico")
     for edge in (256, 1024):
         (HERE / f"icon-{edge}.png").write_bytes(png(load("app", edge), edge))
 

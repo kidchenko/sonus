@@ -9,7 +9,7 @@
 //! | `audio`           | the output device, its apps, and their levels         |
 //! | `panel`           | the mixer: layout, sliders, and painting it           |
 //! | `app`             | the tray icon and its menu, and wiring the two above  |
-//! | `icon`            | draws the faders, the app icon and the glyphs         |
+//! | `icon`            | draws the mark, the app icon and the glyphs           |
 //! | `art`             | the menu's glyphs                                     |
 //! | `program_icon`    | an app's own icon, for its row                        |
 //! | `config`          | the persisted settings and remembered levels          |
