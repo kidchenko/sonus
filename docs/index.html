@@ -201,6 +201,8 @@
   table { width: 100%; border-collapse: collapse; font-size: .96rem; }
   td { padding: 12px 0; border-top: 1px solid var(--line); vertical-align: top; }
   td:first-child { color: var(--dim); width: 34%; padding-right: 16px; }
+  /* The Scoop bucket URL is longer than the column; let it break there. */
+  td code { white-space: normal; overflow-wrap: anywhere; }
   tr:last-child td { border-bottom: 1px solid var(--line); }
 
   .how { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 22px 6px; }
@@ -230,7 +232,7 @@
     <a class="download dl-win" href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe">Download for Windows</a>
     <a class="download ghost dl-mac" href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">Download for macOS</a>
   </div>
-  <p class="alt for-win">Windows 10 or later. Also for <a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">macOS</a>.</p>
+  <p class="alt for-win">or <code>winget install kidchenko.Sonus</code> or <code>choco install sonus</code></p>
   <p class="alt for-mac">or <code>brew install --cask kidchenko/tap/sonus</code></p>
 </header>
 
@@ -289,6 +291,9 @@ Brave Browser: done</pre>
     <h2>Install</h2>
     <table>
       <tr><td>Windows installer</td><td><a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe">Sonus-Setup.exe</a></td></tr>
+      <tr><td>winget</td><td><code>winget install kidchenko.Sonus</code></td></tr>
+      <tr><td>Scoop</td><td><code>scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket</code><br><code>scoop install kidchenko/sonus</code></td></tr>
+      <tr><td>Chocolatey</td><td><code>choco install sonus</code></td></tr>
       <tr><td>macOS</td><td><a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">Sonus.dmg</a> (Apple silicon and Intel)</td></tr>
       <tr><td>Homebrew</td><td><code>brew install --cask kidchenko/tap/sonus</code></td></tr>
     </table>
