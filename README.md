@@ -83,19 +83,21 @@ only works with `output` there.
 
 ### Windows
 
-Download [**Sonus-Setup.exe**](https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe).
-Each release also has a portable `sonus-x.y.z-x64.exe`, which
-[Scoop](https://scoop.sh) installs:
-
 ```powershell
+winget install kidchenko.Sonus
+# or
+choco install sonus
+# or
 scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket
 scoop install kidchenko/sonus
 ```
 
-winget and Chocolatey packages are coming.
+Or grab [**Sonus-Setup.exe**](https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe)
+directly. Each release also ships a portable `sonus-x.y.z-x64.exe` that runs
+without installing; see [Releases](https://github.com/kidchenko/sonus/releases).
 
-The app isn't code-signed, so SmartScreen warns you the first time. Click
-**More info → Run anyway**.
+The app isn't code-signed yet, so SmartScreen warns you the first time you run
+it. Click **More info**, then **Run anyway**.
 
 ### macOS
 
@@ -104,9 +106,18 @@ brew install --cask kidchenko/tap/sonus
 ```
 
 Or download [**Sonus.dmg**](https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg)
-(Apple silicon and Intel) and drag Sonus into Applications. The app isn't
-notarized. The Homebrew cask handles Gatekeeper for you; otherwise run
-`xattr -dr com.apple.quarantine /Applications/Sonus.app` once.
+(Apple silicon and Intel), open it, and drag Sonus into **Applications**. It
+lives in the menu bar and doesn't show up in the Dock.
+
+The app isn't notarized yet, so macOS blocks it the first time you open it.
+Homebrew takes care of that for you. Otherwise, do one of these once:
+
+- Go to **System Settings > Privacy & Security** and click **Open Anyway**
+  next to Sonus.
+- Run `xattr -dr com.apple.quarantine /Applications/Sonus.app`
+
+Move it into Applications before you do this. It won't work while the app is
+still inside the disk image.
 
 The first time you change an app's volume, macOS asks whether Sonus may record
 system audio. Per-app volume on macOS depends on it (see How it works). If you
@@ -196,14 +207,20 @@ and `sonus --preview-panel` opens the panel with sample content.
 1. Bump `version` in `Cargo.toml` and add a section to `CHANGELOG.md`.
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`
 
-The `release` workflow builds the DMG and the installer, publishes them as a
-GitHub Release, and updates the version and checksums in the Chocolatey,
-winget and Homebrew manifests. It pushes to Chocolatey if the `CHOCO_API_KEY`
-secret is set. Submit the `manifest-winget` artifact to
-[microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) yourself. The
-cask in [kidchenko/homebrew-tap](https://github.com/kidchenko/homebrew-tap) is
-updated by the tap's `bump` workflow, right away if the `HOMEBREW_TAP_TOKEN`
-secret is set and otherwise on its daily run.
+The `release` workflow builds the DMG on macOS and the installer and portable
+exe on Windows, puts them on a GitHub Release with checksums, and updates the
+Chocolatey and winget manifests with the new version and checksums:
+
+- **Chocolatey** is pushed automatically when the `CHOCO_API_KEY` secret is set.
+- **winget**: submit the `manifest-winget` artifact to
+  [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), or use
+  `wingetcreate submit`.
+- **Homebrew**: [kidchenko/homebrew-tap](https://github.com/kidchenko/homebrew-tap)
+  bumps `Casks/sonus.rb` itself, right away when the `HOMEBREW_TAP_TOKEN` secret
+  is set and otherwise on its daily run.
+
+If you run the workflow by hand from the Actions tab, it's a dry run. It builds
+everything and uploads it as artifacts, but doesn't publish anything.
 
 ## Not yet
 
