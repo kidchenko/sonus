@@ -40,11 +40,11 @@ Left-click the icon to open it. Click anywhere else or press Esc to close it.
 - Scroll over a row to change it by 2% per notch.
 - Click the speaker at the end of a row, or the app's icon, to mute it.
   Dragging a muted slider unmutes it.
-- An app that's playing music or video gets a second line under its slider:
-  the cover, the track, previous / play / next, and a progress bar you can
-  click to jump. On Windows that's any app that shows up in the media controls by the
-  volume flyout. On macOS it's Spotify and Music, the two players that let
-  other apps steer them.
+- An app that's playing music or video gets a second line under its slider
+  with the cover, the track, previous / play / next, and a progress bar you
+  can click to jump. On Windows that works for any app that shows up in the
+  media controls next to the volume flyout. On macOS it's only Spotify and
+  Music, the two players that let other apps control them.
 
 On Windows the panel looks like Windows 11's own flyouts and uses your accent
 colour and the taskbar's light or dark theme. On macOS it uses the same
@@ -129,8 +129,9 @@ system audio. Per-app volume on macOS depends on it (see How it works). If you
 say no, the panel tells you and links to the right page in System Settings.
 
 The first time the panel shows Spotify or Music, macOS also asks whether
-Sonus may control it. That's for the play buttons; the slider works either
-way. Change your mind under Privacy & Security › Automation.
+Sonus may control it. The play buttons need that, but the slider works
+either way. You can change your answer under **System Settings > Privacy &
+Security > Automation**.
 
 ### Requirements
 
@@ -224,16 +225,17 @@ The `release` workflow builds the DMG on macOS and the installer and portable
 exe on Windows, puts them on a GitHub Release with checksums, and updates the
 Chocolatey and winget manifests with the new version and checksums:
 
-- **Chocolatey** is pushed automatically when the `CHOCO_API_KEY` secret is set.
-- **winget**: submit the `manifest-winget` artifact to
+- Chocolatey gets the new package automatically when the `CHOCO_API_KEY`
+  secret is set.
+- For winget, submit the `manifest-winget` artifact to
   [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), or use
   `wingetcreate submit`.
-- **Homebrew**: [kidchenko/homebrew-tap](https://github.com/kidchenko/homebrew-tap)
-  bumps `Casks/sonus.rb` itself, right away when the `HOMEBREW_TAP_TOKEN` secret
-  is set and otherwise on its daily run.
+- Homebrew's [kidchenko/homebrew-tap](https://github.com/kidchenko/homebrew-tap)
+  bumps `Casks/sonus.rb` itself: right away when the `HOMEBREW_TAP_TOKEN`
+  secret is set, otherwise on its daily run.
 
-If you run the workflow by hand from the Actions tab, it's a dry run. It builds
-everything and uploads it as artifacts, but doesn't publish anything.
+Running the workflow by hand from the Actions tab is a dry run: it builds
+everything and uploads it as artifacts without publishing anything.
 
 ## Not yet
 
