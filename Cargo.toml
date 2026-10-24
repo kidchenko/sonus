@@ -24,10 +24,13 @@ tray-icon  = "0.26"
 # Windows
 # ---------------------------------------------------------------------------
 # WASAPI for the sessions and the endpoint, Direct2D and DirectWrite for the
-# panel. All of it ships with Windows; the crate is bindings only.
+# panel, and the media sessions for the play buttons. All of it ships with
+# Windows; the crate is bindings only.
 [target.'cfg(windows)'.dependencies.windows]
 version  = "0.62"
 features = [
+    "Media_Control",
+    "Storage_Streams",
     "Win32_Devices_FunctionDiscovery",
     "Win32_Foundation",
     "Win32_Graphics_Direct2D",
@@ -36,6 +39,7 @@ features = [
     "Win32_Graphics_Dwm",
     "Win32_Graphics_Dxgi_Common",
     "Win32_Graphics_Gdi",
+    "Win32_Graphics_Imaging",
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
     "Win32_Security",

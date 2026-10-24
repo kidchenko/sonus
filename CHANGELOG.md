@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+- A player under each app that's playing: the cover, the track, previous /
+  play / next, and a progress bar to click and jump. Windows: every app in
+  the system's media controls. macOS: Spotify and Music, by AppleScript,
+  asking for the Automation permission the first time.
+- macOS: the panel says when app volumes are waiting on the System Audio
+  Recording permission, rather than only once it is refused, and the log
+  warns when Sonus runs outside Sonus.app, where that prompt may never show.
+
 ## [0.0.1] - 2026-10-23
 
 First release.

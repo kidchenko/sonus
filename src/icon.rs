@@ -6,6 +6,7 @@
 //! | tray        | a waveform: three bars, tallest in the middle        |
 //! | app icon    | the same waveform, white on a violet tile            |
 //! | glyphs      | speaker (with waves, or crossed out), chevron, check |
+//! |             | play, pause, previous, next                          |
 //!
 //! Drawn from signed distance functions, like the other apps in this family:
 //! crisp at any size and any DPI, no image decoder, no art files to keep in
@@ -203,6 +204,11 @@ pub enum Glyph {
     Check,
     /// The Sonus mark.
     Mark,
+    /// A player's buttons. Filled, as every player draws them.
+    Play,
+    Pause,
+    Previous,
+    Next,
 }
 
 const SPEAKER: [(f32, f32); 6] = [
@@ -245,6 +251,15 @@ fn glyph_distance(g: Glyph, x: f32, y: f32) -> f32 {
             // The tray's waveform, brought onto the 24 grid.
             bars(x * 32.0 / 24.0, y * 32.0 / 24.0, &TRAY) * 24.0 / 32.0
         }
+        // Shapes are filled; the small negative offset rounds their corners
+        // a touch, like the stroked glyphs' round joins.
+        Glyph::Play => polygon(x, y, &[(6.5, 4.0), (20.0, 12.0), (6.5, 20.0)]) - 0.8,
+        Glyph::Pause => rounded_box(x, y, 8.0, 12.0, 2.2, 7.5, 1.0)
+            .min(rounded_box(x, y, 16.0, 12.0, 2.2, 7.5, 1.0)),
+        Glyph::Next => (polygon(x, y, &[(5.0, 5.0), (15.5, 12.0), (5.0, 19.0)]) - 0.8)
+            .min(seg(x, y, (18.5, 5.5), (18.5, 18.5)) - W),
+        Glyph::Previous => (polygon(x, y, &[(19.0, 5.0), (8.5, 12.0), (19.0, 19.0)]) - 0.8)
+            .min(seg(x, y, (5.5, 5.5), (5.5, 18.5)) - W),
     }
 }
 
@@ -370,6 +385,10 @@ mod tests {
             Glyph::ChevronUp,
             Glyph::Check,
             Glyph::Mark,
+            Glyph::Play,
+            Glyph::Pause,
+            Glyph::Previous,
+            Glyph::Next,
         ] {
             assert!(ink(&glyph(g, 32, 2)) > 0, "{g:?}");
         }

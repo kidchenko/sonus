@@ -7,6 +7,7 @@
 //! | module            | responsibility                                        |
 //! |-------------------|-------------------------------------------------------|
 //! | `audio`           | the output device, its apps, and their levels         |
+//! | `media`           | what an app is playing, and play / pause / skip       |
 //! | `panel`           | the mixer: layout, sliders, and painting it           |
 //! | `app`             | the tray icon and its menu, and wiring the two above  |
 //! | `icon`            | draws the mark, the app icon and the glyphs           |
@@ -23,6 +24,7 @@ mod autostart;
 mod config;
 mod icon;
 mod log;
+mod media;
 mod panel;
 #[cfg(windows)]
 mod program_icon;

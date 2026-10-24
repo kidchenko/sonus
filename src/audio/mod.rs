@@ -60,6 +60,9 @@ pub struct AppAudio {
     pub active: bool,
     /// Windows' "System sounds": the chimes, rather than an app.
     pub system: bool,
+    /// What it is playing, with the buttons to steer it. Filled in by
+    /// [`crate::media`] for the panel; `None` from the audio side.
+    pub media: Option<crate::media::Media>,
 }
 
 #[derive(Clone, Debug, Default)]

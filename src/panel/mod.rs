@@ -14,7 +14,9 @@
 
 use crate::audio::{AppAudio, DeviceInfo, Output, Peaks, Problem, Snapshot};
 use crate::icon::{self, Glyph};
+use crate::media::{self, Art, Command, Media};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 // Named `win32`, not `windows`: a module called `windows` would collide with the
 // `windows` crate the moment this file's submodule does `use super::*`.
@@ -52,6 +54,17 @@ const TRACK_H: f32 = 4.0;
 /// The thumb's outer radius. Its centre travels inset by this much, so the
 /// thumb never pokes out past either end of the track.
 const THUMB_R: f32 = 10.0;
+
+/// The player under an app's slider, when the app has one: the track and its
+/// buttons on one line, and the progress bar under them when the track's
+/// length is known.
+const MEDIA_Y: f32 = 54.0;
+const MEDIA_LINE_H: f32 = 24.0;
+const MEDIA_BUTTON: f32 = 26.0;
+const TIMELINE_H: f32 = 14.0;
+const TIME_W: f32 = 38.0;
+const MEDIA_BOTTOM: f32 = 6.0;
+const ART_GAP: f32 = 10.0;
 
 const DEVICE_H: f32 = 34.0;
 const RULE_GAP: f32 = 8.0;
@@ -291,6 +304,11 @@ pub enum Cmd {
         fallback: (Rgba, String),
         opacity: f32,
     },
+    /// A track's cover, already decoded and rounded.
+    Art {
+        r: Rect,
+        art: Art,
+    },
 }
 
 impl Rect {
@@ -307,7 +325,8 @@ impl Cmd {
             Cmd::Fill { r, .. }
             | Cmd::Text { r, .. }
             | Cmd::Glyph { r, .. }
-            | Cmd::AppIcon { r, .. } => *r,
+            | Cmd::AppIcon { r, .. }
+            | Cmd::Art { r, .. } => *r,
             Cmd::Stroke { r, width, .. } => r.inset(-width, -width),
         }
     }
@@ -334,6 +353,27 @@ struct RowBox {
     slider: Rect,
     number: Rect,
     button: Rect,
+    media: Option<MediaBox>,
+}
+
+/// Where a row's player goes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct MediaBox {
+    /// The cover, left of the track and its bar, as tall as both.
+    art: Option<Rect>,
+    text: Rect,
+    previous: Rect,
+    play: Rect,
+    next: Rect,
+    timeline: Option<Timeline>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Timeline {
+    elapsed: Rect,
+    /// The bar's hit area; the bar itself is drawn thin across its middle.
+    bar: Rect,
+    remaining: Rect,
 }
 
 impl RowBox {
@@ -365,7 +405,60 @@ impl RowBox {
             slider: Rect::new(content, top + SLIDER_Y, number.x - 8.0 - content, SLIDER_H),
             number,
             button,
+            media: None,
         }
+    }
+
+    /// The same row, taller, with a player under the slider. The buttons end
+    /// where the mute button does, so the right edge stays one line.
+    fn with_media(mut self, timeline: bool, art: bool) -> Self {
+        let top = self.row.y;
+        let y = top + MEDIA_Y;
+        let right = self.button.right();
+        let next = Rect::new(
+            right - MEDIA_BUTTON,
+            y + (MEDIA_LINE_H - MEDIA_BUTTON) / 2.0,
+            MEDIA_BUTTON,
+            MEDIA_BUTTON,
+        );
+        let play = Rect {
+            x: next.x - MEDIA_BUTTON,
+            ..next
+        };
+        let previous = Rect {
+            x: play.x - MEDIA_BUTTON,
+            ..next
+        };
+        let art_edge = if timeline {
+            MEDIA_LINE_H + 2.0 + TIMELINE_H
+        } else {
+            MEDIA_LINE_H
+        };
+        let art = art.then(|| Rect::new(self.name.x, y, art_edge, art_edge));
+        let x = art.map_or(self.name.x, |a| a.right() + ART_GAP);
+        let text = Rect::new(x, y, previous.x - 8.0 - x, MEDIA_LINE_H);
+        let timeline = timeline.then(|| {
+            let ty = y + MEDIA_LINE_H + 2.0;
+            let elapsed = Rect::new(x, ty, TIME_W, TIMELINE_H);
+            let remaining = Rect::new(WIDTH - PAD - TIME_W, ty, TIME_W, TIMELINE_H);
+            let bar_x = elapsed.right() + 8.0;
+            Timeline {
+                elapsed,
+                bar: Rect::new(bar_x, ty, remaining.x - 8.0 - bar_x, TIMELINE_H),
+                remaining,
+            }
+        });
+        let bottom = timeline.map_or(text.bottom(), |t| t.bar.bottom());
+        self.row.h = bottom + MEDIA_BOTTOM - top;
+        self.media = Some(MediaBox {
+            art,
+            text,
+            previous,
+            play,
+            next,
+            timeline,
+        });
+        self
     }
 
     /// Where the thumb's centre is at `v`.
@@ -418,6 +511,16 @@ pub enum Action {
     /// A gesture on an app's slider finished: worth remembering now.
     Settled(String),
     OpenPermissionSettings,
+    /// One of a player's buttons, or a click on its progress bar.
+    Media(String, Command),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Control {
+    Previous,
+    PlayPause,
+    Next,
+    Seek,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -428,6 +531,7 @@ enum Hit {
     Button(Which),
     /// An app's icon: a bigger target for mute.
     Icon(usize),
+    Media(usize, Control),
     Picker,
     Device(usize),
     ProblemButton,
@@ -470,7 +574,26 @@ pub struct Ui {
     wheel_step: f32,
     /// A trackpad scrolls in fractions of a notch.
     wheel_carry: f32,
+    /// What a click on a player asked for, by app, held over readings that
+    /// say otherwise until one agrees. A reading can predate the click: the
+    /// player had not acted yet when it was taken, and letting it win would
+    /// flick the button back and forth.
+    pending: HashMap<String, Pending>,
 }
+
+#[derive(Clone, Debug, Default)]
+struct Pending {
+    playing: Option<bool>,
+    position: Option<f32>,
+    until: Option<Instant>,
+}
+
+/// How long a click is held over readings that disagree with it: longer than
+/// any player takes to act, short enough that a click it ignored shows.
+const HOLD: Duration = Duration::from_secs(2);
+
+/// A reading this close to a seek's target has caught up with it.
+const SEEK_SLACK: f32 = 2.0;
 
 /// How much of a meter survives each frame at ~30 fps: about a tenth of a
 /// second to fall halfway.
@@ -492,6 +615,7 @@ impl Default for Ui {
             output_peak: 0.0,
             wheel_step: 0.02,
             wheel_carry: 0.0,
+            pending: HashMap::new(),
         }
     }
 }
@@ -544,6 +668,7 @@ impl Ui {
         if model.devices.len() < 2 {
             self.devices_open = false;
         }
+        self.hold_pending(&mut model);
         self.model = model;
         self.look = look;
         self.height() != before
@@ -647,9 +772,13 @@ impl Ui {
                 l.empty = Some(Rect::new(PAD, y, WIDTH - 2.0 * PAD, EMPTY_H));
                 y += EMPTY_H;
             } else {
-                for _ in &m.apps {
-                    l.apps.push(RowBox::at(y));
-                    y += ROW_H;
+                for a in &m.apps {
+                    let mut row = RowBox::at(y);
+                    if let Some(media) = &a.media {
+                        row = row.with_media(media.duration.is_some(), media.art.is_some());
+                    }
+                    y += row.row.h;
+                    l.apps.push(row);
                 }
             }
         }
@@ -685,6 +814,23 @@ impl Ui {
         for (i, row) in l.apps.iter().enumerate() {
             if !row.row.contains(x, y) {
                 continue;
+            }
+            let media = self.model.apps.get(i).and_then(|a| a.media.as_ref());
+            if let (Some(b), Some(media)) = (row.media, media) {
+                for (r, control, enabled) in [
+                    (b.previous, Control::Previous, media.can_previous),
+                    (b.play, Control::PlayPause, media.can_play_pause),
+                    (b.next, Control::Next, media.can_next),
+                ] {
+                    if enabled && r.contains(x, y) {
+                        return Hit::Media(i, control);
+                    }
+                }
+                if let Some(t) = b.timeline {
+                    if media.can_seek && t.bar.contains(x, y) {
+                        return Hit::Media(i, Control::Seek);
+                    }
+                }
             }
             if row.button.contains(x, y) {
                 return Hit::Button(Which::App(i));
@@ -776,9 +922,85 @@ impl Ui {
                 out.resized = true;
             }
             Hit::ProblemButton => out.actions.push(Action::OpenPermissionSettings),
+            Hit::Media(i, control) => self.media_control(i, control, x, &mut out),
             Hit::None => {}
         }
         out
+    }
+
+    /// Keep what a click asked for over a reading that does not show it yet.
+    /// Each part lets go as soon as a reading agrees, and all of it after
+    /// [`HOLD`].
+    fn hold_pending(&mut self, model: &mut Snapshot) {
+        let now = Instant::now();
+        self.pending.retain(|key, p| {
+            if p.until.is_none_or(|t| now >= t) {
+                return false;
+            }
+            let Some(media) = model
+                .apps
+                .iter_mut()
+                .find(|a| &a.key == key)
+                .and_then(|a| a.media.as_mut())
+            else {
+                return false;
+            };
+            if let Some(want) = p.playing {
+                if media.playing == want {
+                    p.playing = None;
+                } else {
+                    media.playing = want;
+                }
+            }
+            if let Some(at) = p.position {
+                if media.position.is_some_and(|x| (x - at).abs() < SEEK_SLACK) {
+                    p.position = None;
+                } else {
+                    media.position = Some(at);
+                }
+            }
+            p.playing.is_some() || p.position.is_some()
+        });
+    }
+
+    /// A player's button, shown done at once where that can be guessed: the
+    /// play button flips, a seek moves the bar. A skip waits for the player
+    /// to say what came next.
+    fn media_control(&mut self, i: usize, control: Control, x: f32, out: &mut Response) {
+        let bar = self
+            .layout()
+            .apps
+            .get(i)
+            .and_then(|r| r.media)
+            .and_then(|m| m.timeline)
+            .map(|t| t.bar);
+        let Some(a) = self.model.apps.get_mut(i) else {
+            return;
+        };
+        let Some(media) = &mut a.media else { return };
+        let command = match control {
+            Control::PlayPause => {
+                media.playing = !media.playing;
+                let p = self.pending.entry(a.key.clone()).or_default();
+                p.playing = Some(media.playing);
+                p.until = Some(Instant::now() + HOLD);
+                Command::PlayPause
+            }
+            Control::Previous => Command::Previous,
+            Control::Next => Command::Next,
+            Control::Seek => {
+                let (Some(bar), Some(length)) = (bar, media.duration) else {
+                    return;
+                };
+                let at = ((x - bar.x) / bar.w.max(1.0)).clamp(0.0, 1.0) * length;
+                media.position = Some(at);
+                let p = self.pending.entry(a.key.clone()).or_default();
+                p.position = Some(at);
+                p.until = Some(Instant::now() + HOLD);
+                Command::Seek(at)
+            }
+        };
+        out.actions.push(Action::Media(a.key.clone(), command));
     }
 
     pub fn mouse_up(&mut self, x: f32, y: f32) -> Response {
@@ -1171,8 +1393,115 @@ impl Ui {
             });
             let peak = self.peaks.get(&a.key).copied().unwrap_or(0.0);
             self.slider(&mut out, &p, row, a.volume, a.muted, peak, Which::App(i));
+            if let (Some(b), Some(media)) = (row.media, &a.media) {
+                self.player(&mut out, &p, i, &b, media);
+            }
         }
         out
+    }
+
+    /// The track, the three buttons, and the progress bar with its times.
+    fn player(&self, out: &mut Vec<Cmd>, p: &Palette, i: usize, b: &MediaBox, media: &Media) {
+        if let (Some(r), Some(art)) = (b.art, &media.art) {
+            out.push(Cmd::Art {
+                r,
+                art: art.clone(),
+            });
+        }
+        let line = match (media.title.is_empty(), media.artist.is_empty()) {
+            (false, false) => format!("{} \u{b7} {}", media.title, media.artist),
+            (false, true) => media.title.clone(),
+            (true, false) => media.artist.clone(),
+            (true, true) => String::new(),
+        };
+        if !line.is_empty() {
+            out.push(Cmd::Text {
+                r: b.text,
+                text: line,
+                size: 12.0,
+                weight: Weight::Regular,
+                color: p.secondary,
+                align: Align::Left,
+            });
+        }
+        let play = if media.playing {
+            Glyph::Pause
+        } else {
+            Glyph::Play
+        };
+        for (r, control, glyph, enabled) in [
+            (
+                b.previous,
+                Control::Previous,
+                Glyph::Previous,
+                media.can_previous,
+            ),
+            (b.play, Control::PlayPause, play, media.can_play_pause),
+            (b.next, Control::Next, Glyph::Next, media.can_next),
+        ] {
+            let hit = Hit::Media(i, control);
+            if enabled && (self.hover == hit || self.pressed == hit) {
+                out.push(Cmd::Fill {
+                    r,
+                    radius: 6.0,
+                    color: if self.pressed == hit {
+                        p.hover.alpha(0.6)
+                    } else {
+                        p.hover
+                    },
+                });
+            }
+            out.push(Cmd::Glyph {
+                r: r.inset(6.0, 6.0),
+                glyph,
+                color: if !enabled {
+                    p.tertiary.alpha(0.5)
+                } else if control == Control::PlayPause {
+                    p.text
+                } else {
+                    p.secondary
+                },
+            });
+        }
+        if let (Some(t), Some(length)) = (b.timeline, media.duration) {
+            let at = media.position.unwrap_or(0.0).clamp(0.0, length);
+            // The elapsed time lines up under the track's name; the remaining
+            // time sits on the right edge, where right alignment also gives
+            // it fixed-width digits on macOS.
+            for (r, text, align) in [
+                (t.elapsed, media::clock(at), Align::Left),
+                (
+                    t.remaining,
+                    format!("-{}", media::clock(length - at)),
+                    Align::Right,
+                ),
+            ] {
+                out.push(Cmd::Text {
+                    r,
+                    text,
+                    size: 11.0,
+                    weight: Weight::Regular,
+                    color: p.tertiary,
+                    align,
+                });
+            }
+            let hovered = self.hover == Hit::Media(i, Control::Seek);
+            let h = if hovered { 4.0 } else { 3.0 };
+            let track = Rect::new(t.bar.x, t.bar.cy() - h / 2.0, t.bar.w, h);
+            out.push(Cmd::Fill {
+                r: track,
+                radius: h / 2.0,
+                color: p.track,
+            });
+            let w = track.w * at / length.max(0.001);
+            if w > 0.5 {
+                out.push(Cmd::Fill {
+                    r: Rect::new(track.x, track.y, w.max(h), h),
+                    radius: h / 2.0,
+                    color: p.secondary,
+                });
+            }
+        }
     }
 
     /// Track, fill, meter, thumb, number and mute button for one row.
@@ -1425,6 +1754,25 @@ pub struct Anchor {
 // Sample content
 // ---------------------------------------------------------------------------
 
+/// A stand-in cover for the sample: a sunset of a gradient.
+fn sample_art() -> Art {
+    let edge = media::ART_EDGE;
+    let mut rgba = Vec::with_capacity((edge * edge * 4) as usize);
+    for y in 0..edge {
+        for x in 0..edge {
+            let t = y as f32 / edge as f32;
+            let u = x as f32 / edge as f32;
+            rgba.extend_from_slice(&[
+                (250.0 - 60.0 * t) as u8,
+                (150.0 - 90.0 * t + 30.0 * u) as u8,
+                (90.0 + 40.0 * t) as u8,
+                255,
+            ]);
+        }
+    }
+    Art::new("sample", rgba, edge)
+}
+
 /// What `--preview-panel` and `--render-panel` show, and the landing page's
 /// pictures. The apps are real ones, with their real icons: taken from what is
 /// playing on this machine when it can be, then from where each app usually
@@ -1460,6 +1808,7 @@ pub fn sample(dark: bool, devices: bool) -> (Snapshot, Look, Peaks, bool) {
             muted,
             active,
             system: false,
+            media: None,
         };
     let mut snap = Snapshot {
         output: Some(Output {
@@ -1538,6 +1887,20 @@ pub fn sample(dark: bool, devices: bool) -> (Snapshot, Look, Peaks, bool) {
         ],
         problem: None,
     };
+    if let Some(spotify) = snap.apps.iter_mut().find(|a| a.key == "spotify") {
+        spotify.media = Some(Media {
+            title: "Relax, Take It Easy".into(),
+            artist: "Nexeri".into(),
+            playing: true,
+            can_play_pause: true,
+            can_previous: true,
+            can_next: true,
+            position: Some(143.0),
+            duration: Some(164.0),
+            can_seek: true,
+            art: Some(sample_art()),
+        });
+    }
     // No Chrome here: Brave is the same browser to look at.
     if let Some(chrome) = snap.apps.iter_mut().find(|a| a.key == "chrome") {
         if chrome.icon.is_none() {
@@ -1577,6 +1940,22 @@ mod tests {
             muted: false,
             active: true,
             system: false,
+            media: None,
+        }
+    }
+
+    fn track(playing: bool, duration: Option<f32>) -> Media {
+        Media {
+            title: "Song".into(),
+            artist: "Band".into(),
+            playing,
+            can_play_pause: true,
+            can_previous: true,
+            can_next: false,
+            position: Some(30.0),
+            duration,
+            can_seek: duration.is_some(),
+            art: None,
         }
     }
 
@@ -1804,6 +2183,140 @@ mod tests {
         let b = u.layout().problem_button.unwrap();
         let r = u.mouse_down(b.x + 5.0, b.cy());
         assert_eq!(r.actions, vec![Action::OpenPermissionSettings]);
+    }
+
+    #[test]
+    fn a_player_makes_its_row_taller_and_pushes_the_rest_down() {
+        let plain = ui(2, 1);
+        let mut u = ui(2, 1);
+        u.model.apps[0].media = Some(track(true, Some(120.0)));
+        let l = u.layout();
+        let b = l.apps[0].media.unwrap();
+        assert!(b.timeline.is_some());
+        assert!(l.apps[0].row.h > ROW_H);
+        assert_eq!(l.apps[1].row.y, l.apps[0].row.bottom());
+        assert_eq!(u.height(), plain.height() + l.apps[0].row.h - ROW_H);
+
+        u.model.apps[0].media = Some(track(true, None));
+        let short = u.layout().apps[0];
+        assert!(short.media.unwrap().timeline.is_none(), "no length, no bar");
+        assert!(short.row.h < l.apps[0].row.h);
+    }
+
+    #[test]
+    fn a_cover_moves_the_track_and_its_bar_right() {
+        let mut u = ui(1, 1);
+        u.model.apps[0].media = Some(track(true, Some(120.0)));
+        let plain = u.layout().apps[0].media.unwrap();
+        u.model.apps[0].media.as_mut().unwrap().art = Some(sample_art());
+        let l = u.layout();
+        let b = l.apps[0].media.unwrap();
+        let art = b.art.unwrap();
+        assert_eq!(art.w, art.h, "square");
+        assert_eq!(art.x, plain.text.x, "where the text used to start");
+        assert!(b.text.x > art.right() && b.timeline.unwrap().elapsed.x > art.right());
+        assert_eq!(art.bottom(), b.timeline.unwrap().bar.bottom());
+        assert_eq!(b.play, plain.play, "the buttons stay put");
+        assert!(u.scene().iter().any(|c| matches!(c, Cmd::Art { .. })));
+    }
+
+    #[test]
+    fn play_flips_at_once_and_a_disabled_button_does_nothing() {
+        let mut u = ui(1, 1);
+        u.model.apps[0].media = Some(track(true, Some(120.0)));
+        let b = u.layout().apps[0].media.unwrap();
+        let r = u.mouse_down(b.play.x + 5.0, b.play.cy());
+        assert_eq!(
+            r.actions,
+            vec![Action::Media("app0".into(), Command::PlayPause)]
+        );
+        assert!(!u.model.apps[0].media.as_ref().unwrap().playing);
+        let r = u.mouse_down(b.previous.x + 5.0, b.previous.cy());
+        assert_eq!(
+            r.actions,
+            vec![Action::Media("app0".into(), Command::Previous)]
+        );
+        let r = u.mouse_down(b.next.x + 5.0, b.next.cy());
+        assert!(r.actions.is_empty(), "this player cannot skip ahead");
+    }
+
+    #[test]
+    fn a_reading_from_before_the_click_does_not_flick_the_button_back() {
+        let mut u = ui(1, 1);
+        u.model.apps[0].media = Some(track(true, Some(120.0)));
+        let b = u.layout().apps[0].media.unwrap();
+        u.mouse_down(b.play.x + 5.0, b.play.cy());
+        let output = u.model.output.clone();
+        let reading = |playing: bool| {
+            let mut a = app("app0", 0.5);
+            a.media = Some(track(playing, Some(120.0)));
+            Snapshot {
+                output: output.clone(),
+                apps: vec![a],
+                ..Default::default()
+            }
+        };
+        let playing = |u: &Ui| u.model.apps[0].media.as_ref().unwrap().playing;
+        u.set_model(reading(true), u.look);
+        assert!(!playing(&u), "still paused: the reading predates the click");
+        u.set_model(reading(false), u.look);
+        assert!(!playing(&u));
+        // The player has caught up, so the next change is its own: played
+        // from the keyboard, say.
+        u.set_model(reading(true), u.look);
+        assert!(playing(&u));
+    }
+
+    #[test]
+    fn a_click_is_not_held_for_ever() {
+        let mut u = ui(1, 1);
+        u.model.apps[0].media = Some(track(true, Some(120.0)));
+        let b = u.layout().apps[0].media.unwrap();
+        u.mouse_down(b.play.x + 5.0, b.play.cy());
+        u.pending.get_mut("app0").unwrap().until = Some(Instant::now());
+        let mut a = app("app0", 0.5);
+        a.media = Some(track(true, Some(120.0)));
+        u.set_model(
+            Snapshot {
+                output: u.model.output.clone(),
+                apps: vec![a],
+                ..Default::default()
+            },
+            u.look,
+        );
+        assert!(
+            u.model.apps[0].media.as_ref().unwrap().playing,
+            "it ignored the click"
+        );
+        assert!(u.pending.is_empty());
+    }
+
+    #[test]
+    fn clicking_the_progress_bar_seeks_there() {
+        let mut u = ui(1, 1);
+        u.model.apps[0].media = Some(track(true, Some(200.0)));
+        let bar = u.layout().apps[0].media.unwrap().timeline.unwrap().bar;
+        let r = u.mouse_down(bar.x + bar.w * 0.75, bar.cy());
+        assert_eq!(
+            r.actions,
+            vec![Action::Media("app0".into(), Command::Seek(150.0))]
+        );
+        assert_eq!(
+            u.model.apps[0].media.as_ref().unwrap().position,
+            Some(150.0)
+        );
+    }
+
+    #[test]
+    fn a_player_row_paints_inside_the_panel() {
+        let mut u = ui(3, 1);
+        u.model.apps[1].media = Some(track(false, Some(3700.0)));
+        for c in u.scene() {
+            if let Cmd::Text { r, .. } | Cmd::Glyph { r, .. } = c {
+                assert!(r.x >= 0.0 && r.right() <= WIDTH, "{r:?}");
+                assert!(r.bottom() <= u.height(), "{r:?}");
+            }
+        }
     }
 
     #[test]

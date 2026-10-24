@@ -53,6 +53,9 @@ struct MacState {
     /// Bundle icons by path. NSWorkspace's are resolution-independent, so one
     /// image serves every size and scale.
     icons: HashMap<String, Retained<NSImage>>,
+    /// Covers by id. A handful at most: one per player, and the last few
+    /// tracks.
+    art: HashMap<u64, Retained<NSImage>>,
 }
 
 thread_local! {
@@ -64,6 +67,7 @@ thread_local! {
         window: None,
         glyphs: HashMap::new(),
         icons: HashMap::new(),
+        art: HashMap::new(),
     });
     /// Pixels per point for glyph bitmaps. `None` means "ask the window"; set
     /// while drawing offscreen, where there is no window to ask.
@@ -527,8 +531,30 @@ fn paint(scene: &[Cmd], look: Look, height: f32, scale: f64, offscreen: bool, di
                     );
                 }
             },
+            Cmd::Art { r, art } => {
+                if let Some(img) = art_image(art) {
+                    draw_image(&img, *r, 1.0);
+                }
+            }
         }
     }
+}
+
+fn art_image(art: &crate::media::Art) -> Option<Retained<NSImage>> {
+    if let Some(img) = MAC.with(|m| m.borrow().art.get(&art.id).cloned()) {
+        return Some(img);
+    }
+    let rep = rep_from_rgba(&art.rgba, art.edge, art.edge)?;
+    let img = NSImage::initWithSize(NSImage::alloc(), NSSize::new(40.0, 40.0));
+    img.addRepresentation(&rep);
+    MAC.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.art.len() >= 16 {
+            m.art.clear();
+        }
+        m.art.insert(art.id, img.clone());
+    });
+    Some(img)
 }
 
 fn ns_rect(r: Rect) -> NSRect {

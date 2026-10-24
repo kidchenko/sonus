@@ -30,6 +30,10 @@
          you set; macOS asks before anything may capture another app's sound. -->
     <key>NSAudioCaptureUsageDescription</key>
     <string>Sonus changes each app's volume by playing its sound back at the level you choose.</string>
+    <!-- Shown in the Automation prompt, the first time the panel shows a
+         Spotify or Music row: the play buttons work by AppleScript. -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Sonus shows what is playing and lets you pause or skip it from the mixer.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>LSMinimumSystemVersion</key>

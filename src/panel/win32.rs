@@ -703,6 +703,8 @@ struct Painter {
     /// `None` remembered too: an app with no icon is asked once, not thirty
     /// times a second.
     icons: HashMap<(String, u32), Option<ID2D1Bitmap>>,
+    /// Covers by id: one per player, and the last few tracks.
+    art: HashMap<u64, ID2D1Bitmap>,
 }
 
 fn color(c: Rgba) -> D2D1_COLOR_F {
@@ -917,6 +919,17 @@ impl Painter {
                                 }
                             }
                         }
+                        Cmd::Art { r, art } => {
+                            if let Some(bmp) = self.art(target, art) {
+                                target.DrawBitmap(
+                                    &bmp,
+                                    Some(&rect(snap(*r, scale))),
+                                    1.0,
+                                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                                    None,
+                                );
+                            }
+                        }
                     }
                 }
                 if clip.is_some() {
@@ -955,6 +968,18 @@ impl Painter {
         }
         let bmp = bitmap(target, &rgba, px)?;
         self.glyphs.insert(key, bmp.clone());
+        Some(bmp)
+    }
+
+    fn art(&mut self, target: &ID2D1RenderTarget, art: &crate::media::Art) -> Option<ID2D1Bitmap> {
+        if let Some(b) = self.art.get(&art.id) {
+            return Some(b.clone());
+        }
+        let bmp = bitmap(target, &art.rgba, art.edge)?;
+        if self.art.len() >= 16 {
+            self.art.clear();
+        }
+        self.art.insert(art.id, bmp.clone());
         Some(bmp)
     }
 

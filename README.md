@@ -40,6 +40,11 @@ Left-click the icon to open it. Click anywhere else or press Esc to close it.
 - Scroll over a row to change it by 2% per notch.
 - Click the speaker at the end of a row, or the app's icon, to mute it.
   Dragging a muted slider unmutes it.
+- An app that's playing music or video gets a second line under its slider:
+  the cover, the track, previous / play / next, and a progress bar you can
+  click to jump. On Windows that's any app that shows up in the media controls by the
+  volume flyout. On macOS it's Spotify and Music, the two players that let
+  other apps steer them.
 
 On Windows the panel looks like Windows 11's own flyouts and uses your accent
 colour and the taskbar's light or dark theme. On macOS it uses the same
@@ -123,6 +128,10 @@ The first time you change an app's volume, macOS asks whether Sonus may record
 system audio. Per-app volume on macOS depends on it (see How it works). If you
 say no, the panel tells you and links to the right page in System Settings.
 
+The first time the panel shows Spotify or Music, macOS also asks whether
+Sonus may control it. That's for the play buttons; the slider works either
+way. Change your mind under Privacy & Security › Automation.
+
 ### Requirements
 
 Windows 10 or later. App volumes on macOS need 14.2 or later; on older
@@ -134,6 +143,10 @@ versions Sonus can still switch the output device and change its volume.
 |---|---|---|
 | Windows | WASAPI audio sessions: `IAudioSessionManager2`, `ISimpleAudioVolume`, `IAudioMeterInformation` | `IAudioEndpointVolume`; switching it uses `IPolicyConfig`, as Sound settings does |
 | macOS | Core Audio process taps, and an aggregate device per app | Core Audio's device properties |
+
+The play buttons use the media sessions behind Windows' own media controls
+(`GlobalSystemMediaTransportControlsSessionManager`), and AppleScript on
+macOS, where the system's now-playing service is private.
 
 Windows has had per-app volume since Vista. Each app that plays sound opens an
 audio session with its own volume and meter, and Sonus changes the same

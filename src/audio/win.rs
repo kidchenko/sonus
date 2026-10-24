@@ -163,6 +163,7 @@ impl Mixer {
                         muted,
                         active: false,
                         system: found.system,
+                        media: None,
                     });
                     groups.len() - 1
                 }

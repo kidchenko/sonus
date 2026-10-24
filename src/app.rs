@@ -15,6 +15,7 @@ use crate::audio::{Mixer, Snapshot};
 use crate::config::{Config, Level};
 use crate::icon::{self, Glyph};
 use crate::log::{ldebug, lerror, linfo};
+use crate::media::Players;
 use crate::panel::{Action, Anchor, Look, Panel};
 use crate::{art, autostart, log, util};
 
@@ -46,6 +47,8 @@ const TOOLTIP_MAX: usize = 127;
 const METER_EVERY: Duration = Duration::from_millis(40);
 const REFRESH_EVERY: Duration = Duration::from_millis(1000);
 const IDLE_EVERY: Duration = Duration::from_secs(2);
+/// After a skip, the player needs a moment before it says what came next.
+const AFTER_MEDIA: Duration = Duration::from_millis(300);
 
 pub enum UserEvent {
     TogglePanel(Option<Anchor>),
@@ -61,6 +64,8 @@ pub enum UserEvent {
 pub struct App {
     tray: TrayIcon,
     mixer: Mixer,
+    /// What each app is playing. Read only for the panel.
+    players: Players,
     /// `None` if the popup window could not be created. The tray keeps working
     /// without it: the menu can still switch devices.
     panel: Option<Panel>,
@@ -128,6 +133,7 @@ impl App {
         let mut app = Self {
             tray,
             mixer,
+            players: Players::new(),
             panel,
             cfg_seen: Config::modified(),
             cfg,
@@ -240,8 +246,16 @@ impl App {
         filtered(self.mixer.snapshot(), &self.cfg)
     }
 
+    /// A reading for the panel: `read`, and what each app is playing. The
+    /// players are only asked while someone is looking.
+    fn read_for_panel(&mut self) -> Snapshot {
+        let mut s = self.read();
+        self.players.fill(&mut s.apps);
+        s
+    }
+
     fn refresh(&mut self) {
-        self.snapshot = self.read();
+        self.snapshot = self.read_for_panel();
         if let Some(p) = &self.panel {
             p.update(self.snapshot.clone(), Look::current());
         }
@@ -254,7 +268,7 @@ impl App {
     /// Open the panel from somewhere other than the tray icon: a second
     /// launch, or the installer.
     pub fn show_panel(&mut self) {
-        self.snapshot = self.read();
+        self.snapshot = self.read_for_panel();
         let anchor = tray_anchor(&self.tray);
         if let Some(p) = &self.panel {
             p.show(self.snapshot.clone(), Look::current(), anchor);
@@ -266,7 +280,7 @@ impl App {
         let was = self.visible();
         if !was {
             // Fresh numbers before it opens: it may have been closed for hours.
-            self.snapshot = self.read();
+            self.snapshot = self.read_for_panel();
         }
         if let Some(p) = &self.panel {
             p.toggle(self.snapshot.clone(), Look::current(), anchor);
@@ -342,6 +356,10 @@ impl App {
                 if let Some(p) = &self.panel {
                     p.hide();
                 }
+            }
+            Action::Media(key, command) => {
+                self.players.send(&key, command);
+                self.next_refresh = Instant::now() + AFTER_MEDIA;
             }
         }
     }

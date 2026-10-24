@@ -894,6 +894,7 @@ impl Mixer {
                     muted: level.muted,
                     active: g.active,
                     system: false,
+                    media: None,
                 }
             })
             .collect();
