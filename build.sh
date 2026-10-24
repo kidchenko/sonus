@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Builds Sonus.app for macOS. The counterpart to build.ps1.
+# Builds Sonus.app for macOS. The counterpart to build.ps1. On Linux it hands
+# over to packaging/linux/build.sh, which takes --package and --skip-tests.
 #
 #   ./build.sh                # test + release binary + Sonus.app (this Mac's arch)
 #   ./build.sh --universal    # ... as one arm64 + x86_64 binary
@@ -9,6 +10,7 @@
 #   ./build.sh --skip-tests
 set -euo pipefail
 cd "$(dirname "$0")"
+[ "$(uname -s)" = Linux ] && exec packaging/linux/build.sh "$@"
 
 run=0; dmg=0; universal=0; skip_tests=0
 for arg in "$@"; do

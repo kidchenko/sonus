@@ -1,10 +1,11 @@
 name: release
 
-# One release, both packages. A pushed v* tag fans out to a macOS runner and a
-# Windows runner — each builds its own native package on its own OS, the thing
-# you cannot do by cross-compiling — and a final job bundles both into a single
-# GitHub Release. So every release carries Sonus.dmg and Sonus-Setup.exe without
-# anyone building on two machines by hand.
+# One release, every package. A pushed v* tag fans out to a macOS, a Windows
+# and a Linux runner — each builds its own native packages on its own OS, the
+# thing you cannot do by cross-compiling — and a final job bundles them into a
+# single GitHub Release. So every release carries Sonus.dmg, Sonus-Setup.exe
+# and the Linux .deb, .rpm and .tar.gz without anyone building on three
+# machines by hand.
 #
 # Push a tag to release:  git tag v0.1.0 && git push origin v0.1.0
 # The tag must match [package].version in Cargo.toml.
@@ -112,8 +113,33 @@ jobs:
           name: manifest-winget
           path: packaging/winget/*.yaml
 
+  linux:
+    needs: version
+    # The oldest Ubuntu GitHub runs: the packages need the glibc they were
+    # built against or newer, and this one's (2.35) is from 2022.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install build and packaging tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-3-dev libayatana-appindicator3-dev libpulse-dev \
+            dpkg-dev rpm file bc
+      - name: Build .deb, .rpm and .tar.gz
+        run: bash build.sh --package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+          if-no-files-found: error
+
   release:
-    needs: [version, macos, windows]
+    needs: [version, macos, windows, linux]
     if: needs.version.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -122,17 +148,20 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: "{macos,windows}"
+          pattern: "{macos,windows,linux}"
           merge-multiple: true
       - name: Checksums
         # Only what gets attached to the release; the .nupkg goes to Chocolatey.
-        run: cd dist && sha256sum -- *.dmg *.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
+        run: |
+          cd dist
+          sha256sum -- *.dmg *.exe *.deb *.rpm *.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          files=(dist/*.dmg dist/*.exe dist/SHA256SUMS.txt)
+          files=(dist/*.dmg dist/*.exe dist/*.deb dist/*.rpm dist/*.tar.gz dist/SHA256SUMS.txt)
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
           else

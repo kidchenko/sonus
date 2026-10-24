@@ -10,9 +10,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Both, always: each platform's backend is cfg-gated, so a change that
-        # builds on one can still break the other.
-        os: [windows-latest, macos-latest]
+        # All three, always: each platform's backend is cfg-gated, so a change
+        # that builds on one can still break another. Linux is the release's
+        # Ubuntu, the oldest the packages promise to run on.
+        os: [windows-latest, macos-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +21,11 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-3-dev libayatana-appindicator3-dev libpulse-dev
 
       - name: Format
         run: cargo fmt --check

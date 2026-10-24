@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Sonus
+GenericName=Volume Mixer
+Comment=A volume slider for every app
+Exec=sonus --show-panel
+Icon=sonus
+Terminal=false
+Categories=AudioVideo;Audio;Mixer;
+Keywords=volume;mixer;sound;audio;
+StartupNotify=false
