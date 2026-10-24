@@ -71,6 +71,9 @@ const TIME_W: f32 = 38.0;
 const MEDIA_BOTTOM: f32 = 6.0;
 const ART_GAP: f32 = 10.0;
 
+/// How far the device picker pushes the master row's slider down, so the
+/// thumb clears the pill above it.
+const PICKER_GAP: f32 = 8.0;
 const DEVICE_H: f32 = 34.0;
 const RULE_GAP: f32 = 8.0;
 const LABEL_H: f32 = 26.0;
@@ -414,6 +417,17 @@ impl RowBox {
         }
     }
 
+    /// The same row, taller, with the slider moved down out of the way of the
+    /// device picker's pill.
+    fn with_picker(mut self) -> Self {
+        self.row.h += PICKER_GAP;
+        self.icon.y += PICKER_GAP / 2.0;
+        self.slider.y += PICKER_GAP;
+        self.number.y += PICKER_GAP;
+        self.button.y += PICKER_GAP;
+        self
+    }
+
     /// The same row, taller, with a player under the slider. The buttons end
     /// where the mute button does, so the right edge stays one line.
     fn with_media(mut self, timeline: bool, art: bool) -> Self {
@@ -727,8 +741,9 @@ impl Ui {
 
         match &m.output {
             Some(_) => {
-                let row = RowBox::at(y);
+                let mut row = RowBox::at(y);
                 if m.devices.len() > 1 {
+                    row = row.with_picker();
                     l.picker = Some(Rect::new(
                         row.name.x - 8.0,
                         row.name.y - 4.0,
@@ -737,7 +752,7 @@ impl Ui {
                     ));
                 }
                 l.master = Some(row);
-                y += ROW_H;
+                y += row.row.h;
                 if self.devices_open {
                     let top = y + 2.0;
                     y = top + 4.0;
