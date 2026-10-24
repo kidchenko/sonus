@@ -53,6 +53,6 @@ $RECYCLE.BIN/
 
 # --------------------------------------------------------------------- runtime
 # Nothing the app writes at runtime lives in the repo -- config.json, state.json
-# and sonus.log all go to %APPDATA%\Sonus on Windows and to
-# ~/Library/Application Support/Sonus on macOS. Noted here only so the next
-# person does not go looking for them.
+# and sonus.log all go to %APPDATA%\Sonus on Windows, to
+# ~/Library/Application Support/Sonus on macOS and to ~/.config/sonus on Linux.
+# Noted here only so the next person does not go looking for them.

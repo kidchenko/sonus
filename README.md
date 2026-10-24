@@ -5,7 +5,7 @@
 # Sonus
 
 A volume slider for every app, in the tray.<br>
-For Windows and macOS.
+For Windows, macOS and Linux.
 
 <sub><i>sonus</i>: Latin for <i>sound</i></sub>
 
@@ -18,8 +18,8 @@ and on Windows the Volume Mixer is two clicks deep in Settings. Click Sonus in
 the tray and you get a slider, a level meter and a mute button for every app
 playing sound, with your output device at the top.
 
-It's one 0.7 MB file with nothing else to install. Idle in the tray, it uses a
-few MB of memory and almost no CPU.
+It's one file of about 1 MB with nothing else to install. Idle in the tray,
+it uses a few MB of memory and almost no CPU.
 
 <p align="center">
 <img src="docs/img/panel-dark.png" width="360" alt="The Sonus mixer, dark">
@@ -29,6 +29,9 @@ few MB of memory and almost no CPU.
 ## The panel
 
 Left-click the icon to open it. Click anywhere else or press Esc to close it.
+On Linux, clicking the icon always opens the menu (that's how Linux trays
+work), so open the panel with **Show mixer** at the top of the menu, or by
+starting Sonus from your app launcher.
 
 - The top row is your output device. Click its name to switch to headphones,
   speakers or a monitor.
@@ -48,7 +51,10 @@ Left-click the icon to open it. Click anywhere else or press Esc to close it.
 
 On Windows the panel looks like Windows 11's own flyouts and uses your accent
 colour and the taskbar's light or dark theme. On macOS it uses the same
-frosted background as the menu bar's menus.
+frosted background as the menu bar's menus. On Linux it follows your
+desktop's light or dark style and accent colour, and uses its font and icons.
+On X11 it opens by the pointer; on Wayland, which doesn't let apps place their
+own windows, your desktop decides where it goes.
 
 ## The menu
 
@@ -72,7 +78,7 @@ reach it from the Start menu or Spotlight.
 
 ## From a terminal
 
-On Windows:
+On Windows and Linux:
 
 ```
 sonus list               # the output device and every app's level
@@ -133,10 +139,43 @@ Sonus may control it. The play buttons need that, but the slider works
 either way. You can change your answer under **System Settings > Privacy &
 Security > Automation**.
 
+### Linux
+
+Ubuntu, Debian, Linux Mint and Pop!_OS:
+
+```bash
+wget https://github.com/kidchenko/sonus/releases/latest/download/sonus_amd64.deb
+sudo apt install ./sonus_amd64.deb
+```
+
+Fedora and openSUSE:
+
+```bash
+sudo dnf install https://github.com/kidchenko/sonus/releases/latest/download/sonus.x86_64.rpm
+# or
+sudo zypper install https://github.com/kidchenko/sonus/releases/latest/download/sonus.x86_64.rpm
+```
+
+Anything else, Arch included: unpack
+[**sonus-x86_64-linux.tar.gz**](https://github.com/kidchenko/sonus/releases/latest/download/sonus-x86_64-linux.tar.gz)
+into `/usr/local` (or `~/.local`). It needs GTK 3, libpulse and
+libayatana-appindicator, which on Arch are `gtk3`, `libpulse` and
+`libayatana-appindicator`.
+
+Sonus shows up in your app launcher. Start it once, then turn on **Run at
+login** under Settings in its menu.
+
+The tray icon needs a desktop that shows tray icons. KDE Plasma, Cinnamon,
+XFCE, MATE, Budgie and Ubuntu's GNOME all do. Stock GNOME, as on Fedora,
+needs the [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/)
+first. Without a tray, starting Sonus from the launcher still opens the panel.
+
 ### Requirements
 
 Windows 10 or later. App volumes on macOS need 14.2 or later; on older
-versions Sonus can still switch the output device and change its volume.
+versions Sonus can still switch the output device and change its volume. On
+Linux, PipeWire or PulseAudio, which every desktop distribution has, and a
+distribution from 2022 or later (Ubuntu 22.04, Debian 12, Fedora 36).
 
 ## How it works
 
@@ -144,15 +183,21 @@ versions Sonus can still switch the output device and change its volume.
 |---|---|---|
 | Windows | WASAPI audio sessions: `IAudioSessionManager2`, `ISimpleAudioVolume`, `IAudioMeterInformation` | `IAudioEndpointVolume`; switching it uses `IPolicyConfig`, as Sound settings does |
 | macOS | Core Audio process taps, and an aggregate device per app | Core Audio's device properties |
+| Linux | The sound server's sink inputs, over the PulseAudio protocol (PipeWire speaks it too) | Its sinks; switching moves playing apps along |
 
 The play buttons use the media sessions behind Windows' own media controls
-(`GlobalSystemMediaTransportControlsSessionManager`), and AppleScript on
-macOS, where the system's now-playing service is private.
+(`GlobalSystemMediaTransportControlsSessionManager`), MPRIS over D-Bus on
+Linux, and AppleScript on macOS, where the system's now-playing service is
+private.
 
 Windows has had per-app volume since Vista. Each app that plays sound opens an
 audio session with its own volume and meter, and Sonus changes the same
 settings as Windows' Volume Mixer. That's why a level you set stays after the
 app or Windows restarts.
+
+Linux has it too. Every app that plays sound has its own stream on the sound
+server, with its own volume, and the server remembers each app's level, as
+Windows does.
 
 macOS has no per-app volume, so Sonus adds it. When you change an app's level,
 Sonus creates a process tap for that app. The tap captures the app's sound and
@@ -164,15 +209,16 @@ your levels in its config and restores them the next time each app plays
 (the `remember` setting). The captured audio is never recorded and never
 leaves your computer.
 
-The panel is drawn with Direct2D and DirectWrite on Windows and AppKit on
-macOS, from one layout. There's no WebView, which keeps the app under a
+The panel is drawn with Direct2D and DirectWrite on Windows, AppKit on
+macOS, and cairo and pango on Linux, from one layout. There's no WebView, which keeps the app under a
 megabyte and quick to open.
 
 ## Configuration
 
 `%APPDATA%\Sonus\config.json` on Windows,
-`~/Library/Application Support/Sonus/config.json` on macOS. Changes apply a
-couple of seconds after you save.
+`~/Library/Application Support/Sonus/config.json` on macOS,
+`~/.config/sonus/config.json` on Linux. Changes apply a couple of seconds
+after you save.
 
 ```json
 {
@@ -188,7 +234,7 @@ couple of seconds after you save.
 | | |
 |---|---|
 | `wheelStep` | Percent per mouse wheel notch, from 1 to 25. |
-| `showSystemSounds` | Windows: show the "System sounds" row, which controls notification chimes. |
+| `showSystemSounds` | Windows and Linux: show the "System sounds" row, which controls notification chimes. |
 | `remember` | macOS: restore each app's level when it plays again. |
 | `levels` | macOS: the saved levels, by bundle id. Sonus writes these. |
 
@@ -209,6 +255,17 @@ Rust 1.77 or newer.
 ./build.sh --dmg      # ... and a disk image
 ```
 
+On Linux, with GTK 3, libpulse and libayatana-appindicator's development
+packages (`libgtk-3-dev libpulse-dev libayatana-appindicator3-dev` on Ubuntu):
+
+```bash
+./build.sh            # Linux: tests, release binary
+./build.sh --package  # ... and dist/: a .deb, an .rpm and a .tar.gz
+```
+
+No Linux machine? [packaging/linux/Dockerfile](packaging/linux/Dockerfile)
+is one, with a sound server and a display to try it on.
+
 The screenshots above come from
 `sonus --render-panel target/panel.rgba --theme light --scale 2`, converted
 with `python assets/panel_png.py`. They use the real icons of whichever sample
@@ -221,8 +278,9 @@ and `sonus --preview-panel` opens the panel with sample content.
 1. Bump `version` in `Cargo.toml` and add a section to `CHANGELOG.md`.
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`
 
-The `release` workflow builds the DMG on macOS and the installer and portable
-exe on Windows, puts them on a GitHub Release with checksums, and updates the
+The `release` workflow builds the DMG on macOS, the installer and portable exe
+on Windows, and the .deb, .rpm and .tar.gz on Linux, puts them on a GitHub
+Release with checksums, and updates the
 Chocolatey and winget manifests with the new version and checksums:
 
 - Chocolatey gets the new package automatically when the `CHOCO_API_KEY`

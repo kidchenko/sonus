@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Linux: the tray app on any desktop with PipeWire or PulseAudio, with app
+  volumes, meters, the output device, and play / pause / skip with the cover
+  for every player that offers MPRIS. The panel follows the desktop's light
+  or dark style, accent colour, font and icons. Packaged as a .deb (Ubuntu,
+  Debian, Mint), an .rpm (Fedora, openSUSE) and a .tar.gz for the rest.
 - A player under each app that's playing: the cover, the track, previous /
   play / next, and a progress bar to click and jump. Windows: every app in
   the system's media controls. macOS: Spotify and Music, by AppleScript,
