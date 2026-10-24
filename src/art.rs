@@ -13,7 +13,7 @@ macro_rules! table {
     };
 }
 
-const GLYPHS: &[(&str, &[u8])] = table!("file-cog" "power" "scroll-text" "settings");
+const GLYPHS: &[(&str, &[u8])] = table!("file-cog" "power" "refresh-cw" "scroll-text" "settings");
 
 /// Menus draw icons at 16 pt; 32 px is sharp on Retina and at 200%.
 const EDGE: u32 = 32;

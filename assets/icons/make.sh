@@ -31,7 +31,7 @@ raster() { # svg png
 
 # Sonus name = Lucide name.
 GLYPHS=(
-  settings file-cog scroll-text power
+  settings file-cog scroll-text refresh-cw power
 )
 rm -rf glyph
 mkdir -p glyph

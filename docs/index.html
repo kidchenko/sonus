@@ -124,6 +124,30 @@
   .for-mac { display: none; }
   .os-mac .for-win { display: none; }
   .os-mac .for-mac { display: block; }
+  .for-mac-inline { display: none; }
+  .os-mac .for-win-inline { display: none; }
+  .os-mac .for-mac-inline { display: inline; }
+
+  /* Opened from the app's "Check for updates…" item: what the page found. */
+  .update {
+    margin: 0 auto 32px; max-width: 34rem; padding: 12px 18px;
+    background: var(--raised); border: 1px solid var(--line); border-radius: 11px;
+    color: var(--dim); font-size: .94rem; line-height: 1.55;
+  }
+  .update strong { color: var(--text); font-weight: 600; }
+  .update[data-state="new"] { border-color: var(--accent); }
+  .update[data-state="new"] strong { color: var(--accent); }
+
+  /* Added by the script after each install command. */
+  .copy {
+    font: 500 .74rem/1.4 "Cascadia Code", "SF Mono", Consolas, ui-monospace, monospace;
+    margin-left: .4em; padding: .14em .55em; vertical-align: .08em;
+    background: transparent; color: var(--dim);
+    border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+  }
+  .copy:hover { color: var(--text); border-color: var(--faint); }
+  .copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  pre + .copy { margin: 8px 0 0; }
 
   /* ------------------------------------------------------- the demo mixer */
   .demo { margin: 64px auto 0; display: flex; flex-direction: column; align-items: center; }
@@ -219,6 +243,15 @@
   .how p { margin: 0 0 16px; color: var(--dim); }
   .how p b { color: var(--text); font-weight: 600; }
 
+  .apps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+  .apps li {
+    display: grid; grid-template-columns: 32px 1fr; gap: 0 14px; align-items: center;
+    padding: 14px 0; border-top: 1px solid var(--line);
+  }
+  .apps img { width: 32px; height: 32px; display: block; }
+  .apps a { font-weight: 600; }
+  .apps span { display: block; color: var(--dim); font-size: .92rem; line-height: 1.5; }
+
   footer { padding: 84px 0 56px; color: var(--faint); font-size: .9rem; text-align: center; }
   footer a { color: var(--dim); }
   footer small { display: block; margin-top: 8px; font-size: .8rem; }
@@ -227,6 +260,7 @@
     header.wrap { padding-top: 56px; }
     td:first-child { width: 40%; }
     code { white-space: normal; overflow-wrap: anywhere; }
+    .apps { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -234,6 +268,7 @@
 <body>
 
 <header class="wrap">
+  <div class="update" id="update" role="status" hidden></div>
   <img class="mark" src="img/icon-256.png" alt="" width="128" height="128">
   <h1>Sonus</h1>
   <p class="tagline">A volume slider for every app, one click from the tray.</p>
@@ -242,8 +277,8 @@
     <a class="download dl-win" href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe">Download for Windows</a>
     <a class="download ghost dl-mac" href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">Download for macOS</a>
   </div>
-  <p class="alt for-win">or <code>winget install kidchenko.Sonus</code> or <code>choco install sonus</code></p>
-  <p class="alt for-mac">or <code>brew install --cask kidchenko/tap/sonus</code></p>
+  <p class="alt for-win">or <code data-copy>scoop install kidchenko/sonus</code> · winget and Chocolatey coming</p>
+  <p class="alt for-mac">or <code data-copy>brew install --cask kidchenko/tap/sonus</code></p>
 </header>
 
 <div class="wrap demo" aria-label="Interactive preview of Sonus's mixer">
@@ -301,14 +336,25 @@ Brave Browser: done</pre>
     <h2>Install</h2>
     <table class="install">
       <tr><td>Windows installer</td><td><a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe">Sonus-Setup.exe</a></td></tr>
-      <tr><td>winget</td><td><code>winget install kidchenko.Sonus</code></td></tr>
-      <tr><td>Scoop</td><td><pre class="cmd">scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket
+      <tr><td>Scoop</td><td><pre class="cmd" data-copy>scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket
 scoop install kidchenko/sonus</pre></td></tr>
-      <tr><td>Chocolatey</td><td><code>choco install sonus</code></td></tr>
+      <tr><td>winget, Chocolatey</td><td>Coming soon</td></tr>
       <tr><td>macOS</td><td><a href="https://github.com/kidchenko/sonus/releases/latest/download/Sonus.dmg">Sonus.dmg</a> (Apple silicon and Intel)</td></tr>
-      <tr><td>Homebrew</td><td><code>brew install --cask kidchenko/tap/sonus</code></td></tr>
+      <tr><td>Homebrew</td><td><code data-copy>brew install --cask kidchenko/tap/sonus</code></td></tr>
     </table>
     <p class="alt" style="text-align:left">Windows 10 or later, or macOS 14.2 or later for app volumes. It needs nothing else installed.</p>
+  </section>
+
+  <section>
+    <h2>More small tray apps</h2>
+    <ul class="apps">
+      <li><img src="https://josebarbosa.dev/cafe/img/icon-256.png" alt="" width="32" height="32"><div><a href="https://josebarbosa.dev/cafe/">Cafe</a><span>Keeps your Mac or PC awake, from the tray.</span></div></li>
+      <li><img src="https://josebarbosa.dev/cantos/img/icon-256.png" alt="" width="32" height="32"><div><a href="https://josebarbosa.dev/cantos/">Cantos</a><span>Hot corners for Windows, macOS and Linux.</span></div></li>
+      <li><img src="https://josebarbosa.dev/cota/img/icon-256.png" alt="" width="32" height="32"><div><a href="https://josebarbosa.dev/cota/">Cota</a><span>Your Claude usage limits, in the tray.</span></div></li>
+      <li><img src="https://josebarbosa.dev/luz/img/icon-256.png" alt="" width="32" height="32"><div><a href="https://josebarbosa.dev/luz/">Luz</a><span>Warms your screen at night, like f.lux.</span></div></li>
+      <li><img src="https://josebarbosa.dev/porta/img/icon-256.png" alt="" width="32" height="32"><div><a href="https://josebarbosa.dev/porta/">Porta</a><span>What's listening on your ports, and a way to stop it.</span></div></li>
+      <li><img src="https://josebarbosa.dev/suavez/img/icon-256.png" alt="" width="32" height="32"><div><a href="https://josebarbosa.dev/suavez/">Sua Vez</a><span>Lights up when your coding agent finishes or needs you.</span></div></li>
+    </ul>
   </section>
 </main>
 
@@ -316,6 +362,7 @@ scoop install kidchenko/sonus</pre></td></tr>
   Made by <a href="https://github.com/kidchenko">kidchenko</a>. MIT licensed.
   <a href="https://github.com/kidchenko/sonus">Source</a> and
   <a href="https://github.com/kidchenko/sonus/releases">releases</a> on GitHub.
+  <a href="https://josebarbosa.dev/portfolio/">All apps</a>.
   <small>App icons are trademarks of their owners, shown as Sonus shows them.</small>
 </footer>
 
@@ -325,6 +372,72 @@ scoop install kidchenko/sonus</pre></td></tr>
     var p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
     if (/mac/i.test(p)) document.body.classList.add("os-mac");
   } catch (e) {}
+
+  // Opened from the app's "Check for updates…" menu item as ?v=<installed>.
+  // The app never touches the network; this page asks GitHub instead.
+  (function () {
+    var have = new URLSearchParams(location.search).get("v");
+    if (!have || !/^\d+(\.\d+){0,3}$/.test(have)) return;
+    var box = document.getElementById("update");
+    function cmp(a, b) {
+      a = a.split("."); b = b.split(".");
+      for (var i = 0; i < Math.max(a.length, b.length); i++) {
+        var d = (+a[i] || 0) - (+b[i] || 0);
+        if (d) return d;
+      }
+      return 0;
+    }
+    function show(html, state) {
+      box.innerHTML = html;
+      box.setAttribute("data-state", state);
+      box.hidden = false;
+    }
+    fetch("https://api.github.com/repos/kidchenko/sonus/releases/latest")
+      .then(function (r) { if (!r.ok) throw r.status; return r.json(); })
+      .then(function (rel) {
+        var latest = String(rel.tag_name || "").replace(/^v/, "");
+        if (!/^\d+(\.\d+){0,3}$/.test(latest)) throw "tag";
+        if (cmp(latest, have) > 0) {
+          show("<strong>Sonus " + latest + " is out.</strong> You have " + have + ". " +
+               "Download it below, or run " +
+               "<code class=\"for-mac-inline\">brew upgrade --cask kidchenko/tap/sonus</code>" +
+               "<code class=\"for-win-inline\">scoop update sonus</code> if you installed it that way.", "new");
+        } else {
+          show("You have the latest version of Sonus (" + have + ").", "current");
+        }
+      })
+      .catch(function () {
+        show("Could not reach GitHub to check. You have " + have + ". " +
+             "<a href=\"https://github.com/kidchenko/sonus/releases\">See all releases</a>.", "error");
+      });
+  })();
+
+  // A Copy button after each install command. Without a clipboard, it selects
+  // the command instead, ready for the keyboard shortcut.
+  (function () {
+    document.querySelectorAll("[data-copy]").forEach(function (code) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "copy";
+      btn.textContent = "Copy";
+      code.insertAdjacentElement("afterend", btn);
+      btn.addEventListener("click", function () {
+        function select() {
+          var range = document.createRange();
+          range.selectNodeContents(code);
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        if (!navigator.clipboard || !navigator.clipboard.writeText) return select();
+        navigator.clipboard.writeText(code.textContent).then(function () {
+          btn.textContent = "Copied";
+          clearTimeout(btn.timer);
+          btn.timer = setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+        }, select);
+      });
+    });
+  })();
 
   // The demo mixer: the panel's rows and behaviours, in HTML.
   (function () {

@@ -66,12 +66,15 @@ Right-click the icon:
       Output                     ▸   ✓ Speakers (Realtek(R) Audio)
       ───────────────────────────      Headphones (WH-1000XM5)
       Settings                   ▸
+      Check for updates…
       ───────────────────────────
   ⏻   Quit Sonus                ⌘Q
 ```
 
 Output switches the device without opening the panel. Settings has Run at
-login, Edit settings file… and Open log.
+login, Edit settings file… and Open log. Check for updates… opens Sonus's
+page in your browser, which compares your version with the latest release;
+Sonus itself never goes online.
 
 Starting Sonus again while it's running opens the panel, so you can also
 reach it from the Start menu or Spotlight.
@@ -95,13 +98,12 @@ only works with `output` there.
 ### Windows
 
 ```powershell
-winget install kidchenko.Sonus
-# or
-choco install sonus
-# or
 scoop bucket add kidchenko https://github.com/kidchenko/scoop-bucket
 scoop install kidchenko/sonus
 ```
+
+`winget install kidchenko.Sonus` and `choco install sonus` are coming: both
+packages are waiting on review.
 
 Or grab [**Sonus-Setup.exe**](https://github.com/kidchenko/sonus/releases/latest/download/Sonus-Setup.exe)
 directly. Each release also ships a portable `sonus-x.y.z-x64.exe` that runs

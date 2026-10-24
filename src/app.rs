@@ -37,6 +37,7 @@ const ID_PANEL: &str = "panel";
 const ID_AUTOSTART: &str = "autostart";
 const ID_CONFIG: &str = "config";
 const ID_LOG: &str = "log";
+const ID_UPDATES: &str = "updates";
 const ID_QUIT: &str = "quit";
 /// Device rows carry this prefix and then the device's id.
 const ID_DEVICE: &str = "device:";
@@ -60,6 +61,7 @@ pub enum UserEvent {
     ToggleAutostart,
     OpenConfig,
     OpenLog,
+    CheckUpdates,
     Quit,
 }
 
@@ -189,6 +191,7 @@ impl App {
             UserEvent::ToggleAutostart => self.toggle_autostart(),
             UserEvent::OpenConfig => open_config(),
             UserEvent::OpenLog => log::reveal(),
+            UserEvent::CheckUpdates => check_updates(),
         }
     }
 
@@ -507,6 +510,12 @@ impl App {
         let _ = menu.append(&output);
         let _ = menu.append(&PredefinedMenuItem::separator());
         let _ = menu.append(&settings_menu());
+        let _ = menu.append(&lucide_item(
+            ID_UPDATES,
+            "Check for updates\u{2026}",
+            "refresh-cw",
+            None,
+        ));
         let _ = menu.append(&PredefinedMenuItem::separator());
         let _ = menu.append(&lucide_item(ID_QUIT, "Quit Sonus", "power", shortcut('q')));
 
@@ -661,6 +670,15 @@ fn open_config() {
     }
 }
 
+/// Sonus never touches the network: the site compares this version with the
+/// latest release and says whether there is a newer one.
+fn check_updates() {
+    util::shell_open(concat!(
+        "https://josebarbosa.dev/sonus/?v=",
+        env!("CARGO_PKG_VERSION")
+    ));
+}
+
 fn forward_menu_events(proxy: &EventLoopProxy<UserEvent>) {
     let proxy = proxy.clone();
     MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
@@ -670,6 +688,7 @@ fn forward_menu_events(proxy: &EventLoopProxy<UserEvent>) {
             ID_AUTOSTART => UserEvent::ToggleAutostart,
             ID_CONFIG => UserEvent::OpenConfig,
             ID_LOG => UserEvent::OpenLog,
+            ID_UPDATES => UserEvent::CheckUpdates,
             ID_QUIT => UserEvent::Quit,
             _ => match id.strip_prefix(ID_DEVICE) {
                 Some(device) => UserEvent::Device(device.to_string()),

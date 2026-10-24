@@ -14,6 +14,8 @@
 - macOS: the panel says when app volumes are waiting on the System Audio
   Recording permission, rather than only once it is refused, and the log
   warns when Sonus runs outside Sonus.app, where that prompt may never show.
+- Check for updates… in the menu opens Sonus's page, which says whether a
+  newer version is out. Sonus itself still never goes online.
 
 ## [0.0.1] - 2026-10-23
 
