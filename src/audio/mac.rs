@@ -833,6 +833,14 @@ impl Mixer {
                 "unavailable"
             }
         );
+        // TCC asks on behalf of the app bundle. A bare binary run from a
+        // terminal is the terminal's, and a terminal without an audio capture
+        // usage string never gets the prompt: levels would wait forever.
+        let bundled = std::env::current_exe()
+            .is_ok_and(|p| p.to_string_lossy().contains(".app/Contents/MacOS/"));
+        if !bundled {
+            lwarn!("not running from Sonus.app: the permission prompt may never show; app volumes need ./build.sh and dist/Sonus.app");
+        }
         Ok(Self {
             api,
             own_pid: std::process::id() as libc::pid_t,
@@ -850,7 +858,13 @@ impl Mixer {
         if self.api.create_tap.is_none() {
             return Some(Problem::Unsupported);
         }
-        (self.api.permission() == Permission::Denied).then_some(Problem::NeedsPermission)
+        // Asked and still unanswered counts too: levels are being held, and
+        // if no prompt ever showed (see `new`), the panel is the only hint.
+        match self.api.permission() {
+            Permission::Denied => Some(Problem::NeedsPermission),
+            Permission::Unknown if self.asked => Some(Problem::NeedsPermission),
+            _ => None,
+        }
     }
 
     pub fn snapshot(&mut self) -> Snapshot {
