@@ -1,8 +1,8 @@
 // No console window: this is a tray app. No-op off Windows.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-//! Sonus ("sound") is a volume slider for every app, in the tray, on Windows
-//! and macOS.
+//! Sonus ("sound") is a volume slider for every app, in the tray, on Windows,
+//! macOS and Linux.
 //!
 //! | module            | responsibility                                        |
 //! |-------------------|-------------------------------------------------------|
@@ -42,8 +42,8 @@ Sonus: a volume slider for every app.
 usage:
   sonus                    run in the tray (or open the running copy's mixer)
   sonus list               print the output device and every app's level
-  sonus set <app> <0-100>  set an app's volume (Windows); <app> is part of
-                           its name, or \"output\" for the device
+  sonus set <app> <0-100>  set an app's volume (Windows, Linux); <app> is
+                           part of its name, or \"output\" for the device
   sonus mute <app>         mute an app, or the output
   sonus unmute <app>       unmute it";
 
@@ -160,8 +160,8 @@ fn cli(args: &[String]) -> i32 {
 
 /// `sonus set spotify 30`, `sonus mute chrome`, `sonus set output 50`.
 ///
-/// Windows keeps an app's level itself, so a level set here outlasts the
-/// command. On macOS an app's level lives in the running Sonus's tap, so a
+/// Windows and Linux keep an app's level themselves, so a level set here
+/// outlasts the command. On macOS an app's level lives in the running Sonus's tap, so a
 /// command that exits would take it with it: there, it says so instead.
 fn set(args: &[String]) -> i32 {
     let verb = args[0].as_str();

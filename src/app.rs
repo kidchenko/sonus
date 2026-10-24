@@ -3,7 +3,9 @@
 //!
 //! Everything here runs on the main thread, driven by the event loop in
 //! `main`. Left button opens the [`panel`](crate::panel), which is the mixer;
-//! right button opens the menu, which holds the commands.
+//! right button opens the menu, which holds the commands. On Linux the tray
+//! (AppIndicator) never says it was clicked: any click opens the menu, and the
+//! mixer is its first item.
 //!
 //! The loop sleeps between ticks. While the panel is open it wakes twenty-five
 //! times a second for the meters and once a second for a fresh reading of the
@@ -84,6 +86,9 @@ pub struct App {
     next_meter: Instant,
     next_refresh: Instant,
     next_idle: Instant,
+    /// Linux: the wake-up already asked of GLib (see `ticks`).
+    #[cfg(target_os = "linux")]
+    wake_at: Option<Instant>,
     exit: bool,
 }
 
@@ -92,7 +97,7 @@ impl App {
         forward_menu_events(&proxy);
         forward_tray_events(&proxy);
 
-        let dark_taskbar = crate::theme::taskbar_is_dark();
+        let dark_taskbar = crate::theme::tray_is_dark();
         let image = TrayImage::from_rgba(
             icon::render(dark_taskbar, icon::EDGE),
             icon::EDGE,
@@ -107,7 +112,7 @@ impl App {
         // On macOS the icon is a template: AppKit tints it for the menu bar.
         #[cfg(target_os = "macos")]
         let builder = builder.with_icon_templated(image);
-        #[cfg(windows)]
+        #[cfg(not(target_os = "macos"))]
         let builder = builder.with_icon(image);
         let tray = builder
             .build()
@@ -146,6 +151,8 @@ impl App {
             next_meter: now,
             next_refresh: now + REFRESH_EVERY,
             next_idle: now,
+            #[cfg(target_os = "linux")]
+            wake_at: None,
             exit: false,
         };
         app.restore_levels();
@@ -220,12 +227,28 @@ impl App {
         } else {
             self.next_idle
         };
+        #[cfg(target_os = "linux")]
+        self.wake_at(next);
         ControlFlow::WaitUntil(next)
+    }
+
+    /// tao on Linux waits for `WaitUntil` in GTK's main loop without a timer
+    /// for the time asked, so nothing would wake it but the next GTK event:
+    /// no meters, no refresh. A GLib timeout is that timer. One is added only
+    /// when it would fire sooner than the one already waiting.
+    #[cfg(target_os = "linux")]
+    fn wake_at(&mut self, at: Instant) {
+        let now = Instant::now();
+        if self.wake_at.is_some_and(|w| w > now && w <= at) {
+            return;
+        }
+        self.wake_at = Some(at);
+        gtk::glib::timeout_add_local_once(at.saturating_duration_since(now), || {});
     }
 
     /// The slow tick.
     fn idle(&mut self) {
-        let dark = crate::theme::taskbar_is_dark();
+        let dark = crate::theme::tray_is_dark();
         if dark != self.dark_taskbar {
             self.dark_taskbar = dark;
             self.set_tray_image();
@@ -415,7 +438,7 @@ impl App {
             Ok(image) => {
                 #[cfg(target_os = "macos")]
                 let set = self.tray.set_icon_templated(Some(image));
-                #[cfg(windows)]
+                #[cfg(not(target_os = "macos"))]
                 let set = self.tray.set_icon(Some(image));
                 if let Err(e) = set {
                     lerror!("could not set the tray icon: {e}");
@@ -556,14 +579,14 @@ fn drawn_item(id: &str, text: &str, g: Glyph) -> IconMenuItem {
 fn set_item_icon(item: &IconMenuItem, icon: Option<tray_icon::menu::Icon>) {
     #[cfg(target_os = "macos")]
     item.set_icon_templated(icon);
-    #[cfg(windows)]
+    #[cfg(not(target_os = "macos"))]
     item.set_icon(icon);
 }
 
 fn set_submenu_icon(sub: &Submenu, icon: Option<tray_icon::menu::Icon>) {
     #[cfg(target_os = "macos")]
     sub.set_icon_templated(icon);
-    #[cfg(windows)]
+    #[cfg(not(target_os = "macos"))]
     sub.set_icon(icon);
 }
 
@@ -622,7 +645,8 @@ fn open_config() {
         }
     }
     // Notepad / TextEdit rather than the .json association, which on many
-    // machines is a browser or nothing at all.
+    // machines is a browser or nothing at all. Linux has no editor everyone
+    // has, so there it is the association after all.
     #[cfg(windows)]
     let spawned = std::process::Command::new("notepad.exe").arg(&path).spawn();
     #[cfg(target_os = "macos")]
@@ -630,6 +654,8 @@ fn open_config() {
         .arg("-t")
         .arg(&path)
         .spawn();
+    #[cfg(target_os = "linux")]
+    let spawned = std::process::Command::new("xdg-open").arg(&path).spawn();
     if let Err(e) = spawned {
         lerror!("could not open {}: {e}", path.display());
     }

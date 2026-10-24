@@ -1,10 +1,21 @@
 //! System light/dark preference, and the accent colour.
 //!
-//! The panel opens from the tray, so it follows the tray: the Windows taskbar
-//! or the macOS menu bar. The accent colour is the user's, as in every slider
+//! The panel opens from the tray, so it follows the tray: the Windows taskbar,
+//! the macOS menu bar, or the Linux desktop's panel. The accent colour is the user's, as in every slider
 //! the OS draws itself.
 
 pub use imp::{accent, taskbar_is_dark};
+
+/// Whether the bar the tray icon sits on is dark, for the icon's colour. The
+/// same answer as the panel's everywhere but GNOME, whose top bar stays dark
+/// in light mode too.
+pub fn tray_is_dark() -> bool {
+    let gnome = cfg!(target_os = "linux")
+        && std::env::var("XDG_CURRENT_DESKTOP")
+            .map(|d| d.split(':').any(|d| d.eq_ignore_ascii_case("gnome")))
+            .unwrap_or(false);
+    gnome || taskbar_is_dark()
+}
 
 // ---------------------------------------------------------------------------
 // Windows
@@ -137,5 +148,64 @@ mod imp {
             }
             None => (0x00, 0x7a, 0xff),
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Linux
+// ---------------------------------------------------------------------------
+#[cfg(target_os = "linux")]
+mod imp {
+    use gtk::gio::{self, prelude::*};
+    use gtk::glib::Variant;
+
+    /// True when the desktop asks apps for dark.
+    ///
+    /// Asked of the desktop portal, the one place GNOME, KDE and the others
+    /// all answer: `color-scheme` is 1 for dark, 2 for light and 0 for no
+    /// preference, which is light.
+    pub fn taskbar_is_dark() -> bool {
+        portal("color-scheme").and_then(|v| v.get::<u32>()) == Some(1)
+    }
+
+    /// The user's accent colour, where the desktop has one (GNOME 47 and
+    /// later, KDE): three doubles from 0 to 1. Otherwise GNOME's default
+    /// blue, a shade lighter on dark as on the other two.
+    pub fn accent(dark: bool) -> (u8, u8, u8) {
+        let rgb = portal("accent-color").and_then(|v| v.get::<(f64, f64, f64)>());
+        match rgb {
+            Some((r, g, b)) if [r, g, b].iter().all(|c| (0.0..=1.0).contains(c)) => {
+                let byte = |v: f64| (v * 255.0).round() as u8;
+                (byte(r), byte(g), byte(b))
+            }
+            _ if dark => (0x78, 0xae, 0xed),
+            _ => (0x35, 0x84, 0xe4),
+        }
+    }
+
+    /// One `org.freedesktop.appearance` setting, unwrapped from the variant
+    /// the portal wraps it in. `None` with no session bus or no portal, as in
+    /// a bare window manager; the callers fall back to light and blue.
+    fn portal(key: &str) -> Option<Variant> {
+        let bus = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE).ok()?;
+        let reply = bus
+            .call_sync(
+                Some("org.freedesktop.portal.Desktop"),
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.Settings",
+                "ReadOne",
+                Some(&("org.freedesktop.appearance", key).to_variant()),
+                None,
+                gio::DBusCallFlags::NONE,
+                200,
+                gio::Cancellable::NONE,
+            )
+            .ok()?;
+        let mut v = reply.child_value(0);
+        // ReadOne answers v; the older Read answers v inside v.
+        while let Some(inner) = v.as_variant() {
+            v = inner;
+        }
+        Some(v)
     }
 }

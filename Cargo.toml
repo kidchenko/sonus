@@ -78,6 +78,19 @@ objc2            = "0.6"
 objc2-app-kit    = "0.3"
 objc2-foundation = "0.3"
 
+# ---------------------------------------------------------------------------
+# Linux
+# ---------------------------------------------------------------------------
+# GTK is already how tao and tray-icon run on Linux; Sonus uses the same
+# version for D-Bus (gio) and to paint the panel (cairo, pango). The sound
+# server is spoken to through libpulse, which PipeWire answers too. `libc` is
+# for localtime_r, as on macOS.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk              = "0.18"
+libc             = "0.2"
+libpulse-binding = { version = "2.30", default-features = false }
+pangocairo       = "0.18"
+
 # Size is a first-class goal, same as the rest of the family.
 [profile.release]
 opt-level     = "z"

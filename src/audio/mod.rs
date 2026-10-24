@@ -6,10 +6,12 @@
 //! is a thin layer over WASAPI's audio sessions. macOS has no such thing, so
 //! there Sonus builds it: each app whose level you change is captured with a
 //! Core Audio process tap, which silences the original, and played back again
-//! at the level you chose.
+//! at the level you chose. Linux's sound server (PulseAudio, or PipeWire
+//! speaking its protocol) has per-app volume as Windows does.
 //!
-//! Everything here runs on the UI thread. The calls are short (a property read
-//! or a COM call), and the panel wants its answers before it paints.
+//! Everything here runs on the UI thread. The calls are short (a property read,
+//! a COM call, or reading what the sound server has already sent), and the
+//! panel wants its answers before it paints.
 
 #[cfg(windows)]
 mod win;
@@ -20,6 +22,11 @@ use win as imp;
 mod mac;
 #[cfg(target_os = "macos")]
 use mac as imp;
+
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as imp;
 
 use crate::config::Level;
 
@@ -35,7 +42,7 @@ pub struct Output {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DeviceInfo {
     /// Opaque to everyone but the backend: an endpoint id on Windows, a
-    /// device UID on macOS.
+    /// device UID on macOS, a sink name on Linux.
     pub id: String,
     pub name: String,
     pub default: bool,
@@ -48,8 +55,8 @@ pub struct DeviceInfo {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppAudio {
     /// Stable for as long as the app runs, and across runs: the executable's
-    /// path on Windows, the bundle id (or path) on macOS. What a level is
-    /// remembered under.
+    /// path on Windows, the bundle id (or path) on macOS, the executable's
+    /// name on Linux. What a level is remembered under.
     pub key: String,
     pub name: String,
     /// Where the icon comes from: the .exe, or the .app bundle.
@@ -75,8 +82,8 @@ pub struct Snapshot {
     pub problem: Option<Problem>,
 }
 
-// Only macOS raises these; the panel draws them on both.
-#[cfg_attr(windows, allow(dead_code))]
+// Only macOS raises these; the panel draws them everywhere.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Problem {
     /// macOS: the "System Audio Recording" permission is off, so app volumes
@@ -139,7 +146,9 @@ impl Mixer {
 
     /// Housekeeping on a slow tick, whether or not the panel is open. macOS
     /// uses it to put remembered levels back on apps that have just started,
-    /// and to follow a change of output device; Windows needs nothing.
+    /// and to follow a change of output device; Linux to close the meters
+    /// once the panel has, and to reconnect to a restarted sound server;
+    /// Windows needs nothing.
     pub fn tick(&mut self, remembered: &dyn Fn(&str) -> Option<Level>) {
         self.0.tick(remembered);
     }

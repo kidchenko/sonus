@@ -77,3 +77,15 @@ mod imp {
             .spawn();
     }
 }
+
+// ---------------------------------------------------------------------------
+// Linux
+// ---------------------------------------------------------------------------
+#[cfg(target_os = "linux")]
+mod imp {
+    /// Hand a path (or URL) to `xdg-open`, which every desktop answers with
+    /// the user's own choice of app.
+    pub fn shell_open(target: &str) {
+        let _ = std::process::Command::new("xdg-open").arg(target).spawn();
+    }
+}

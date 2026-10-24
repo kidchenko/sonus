@@ -4,10 +4,12 @@
 //! Sonus is running to hold it, so a Sonus that did not start at login is every
 //! app back at full volume.
 //!
-//! On Windows this is the per-user Run key; on macOS a LaunchAgent plist. Both
-//! are deliberate for the same reasons: no elevation, trivially inspectable
-//! (Task Manager's Startup tab / `~/Library/LaunchAgents`), and uninstalling
-//! leaves one stale entry rather than something nobody can find.
+//! On Windows this is the per-user Run key; on macOS a LaunchAgent plist; on
+//! Linux a `.desktop` file in `~/.config/autostart`, which every desktop that
+//! follows freedesktop.org starts at login. All three are deliberate for the
+//! same reasons: no elevation, trivially inspectable (Task Manager's Startup
+//! tab / `~/Library/LaunchAgents` / the desktop's startup settings), and
+//! uninstalling leaves one stale entry rather than something nobody can find.
 
 pub use imp::{is_enabled, set};
 
@@ -177,5 +179,96 @@ mod imp {
         s.replace('&', "&amp;")
             .replace('<', "&lt;")
             .replace('>', "&gt;")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Linux
+// ---------------------------------------------------------------------------
+#[cfg(target_os = "linux")]
+mod imp {
+    use std::path::PathBuf;
+
+    fn entry_path() -> Option<PathBuf> {
+        crate::config::Config::dir()
+            .and_then(|d| d.parent().map(|p| p.join("autostart/sonus.desktop")))
+    }
+
+    /// Presence of the file is the switch, as on the other two.
+    pub fn is_enabled() -> bool {
+        entry_path().map(|p| p.exists()).unwrap_or(false)
+    }
+
+    pub fn set(enabled: bool) -> Result<(), String> {
+        let path = entry_path().ok_or("no HOME in environment")?;
+
+        if !enabled {
+            return match std::fs::remove_file(&path) {
+                Ok(()) => Ok(()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(format!("could not remove the autostart entry: {e}")),
+            };
+        }
+
+        // An AppImage runs from a mount that moves every launch; the file
+        // itself is in $APPIMAGE.
+        let exe = match std::env::var_os("APPIMAGE") {
+            Some(a) => PathBuf::from(a),
+            None => std::env::current_exe()
+                .map_err(|e| format!("could not resolve the executable path: {e}"))?,
+        };
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)
+                .map_err(|e| format!("could not create the autostart dir: {e}"))?;
+        }
+        std::fs::write(&path, desktop_entry(&exe.to_string_lossy()))
+            .map_err(|e| format!("could not write the autostart entry: {e}"))
+    }
+
+    fn desktop_entry(exe: &str) -> String {
+        format!(
+            "[Desktop Entry]\n\
+             Type=Application\n\
+             Name=Sonus\n\
+             Comment=A volume slider for every app\n\
+             Exec={}\n\
+             Icon=sonus\n\
+             Terminal=false\n\
+             X-GNOME-Autostart-enabled=true\n",
+            exec_quote(exe)
+        )
+    }
+
+    /// The Exec key's quoting: double quotes around anything with a space or
+    /// a reserved character, and backslash before `"`, `` ` ``, `$` and `\`.
+    fn exec_quote(s: &str) -> String {
+        if !s.contains(|c: char| " \t\"'\\><~|&;$*?#()`".contains(c)) {
+            return s.to_string();
+        }
+        let mut out = String::from("\"");
+        for c in s.chars() {
+            if matches!(c, '"' | '`' | '$' | '\\') {
+                out.push('\\');
+            }
+            out.push(c);
+        }
+        out.push('"');
+        // The file format escapes backslashes once more, on top of Exec's own.
+        out.replace('\\', "\\\\")
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn exec_paths_are_quoted_only_when_needed() {
+            assert_eq!(exec_quote("/usr/bin/sonus"), "/usr/bin/sonus");
+            assert_eq!(
+                exec_quote("/home/me/My Apps/Sonus.AppImage"),
+                "\"/home/me/My Apps/Sonus.AppImage\""
+            );
+            assert_eq!(exec_quote("/opt/$x/sonus"), "\"/opt/\\\\$x/sonus\"");
+        }
     }
 }

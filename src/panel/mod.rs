@@ -6,11 +6,11 @@
 //! (dragging a slider, the wheel, the device list) and turns all of it into a
 //! flat list of drawing commands ([`Cmd`]). The platform submodules own a
 //! window, forward the mouse to [`Ui`], and paint the commands: Direct2D on
-//! Windows, AppKit on macOS. One layout, one set of behaviours, two painters,
-//! so the two apps cannot drift apart.
+//! Windows, AppKit on macOS, cairo and pango on Linux. One layout, one set of
+//! behaviours, three painters, so the apps cannot drift apart.
 //!
-//! Coordinates are logical pixels (DIPs on Windows, points on macOS), top-left
-//! origin, y down.
+//! Coordinates are logical pixels (DIPs on Windows, points on macOS, GTK's
+//! logical pixels on Linux), top-left origin, y down.
 
 use crate::audio::{AppAudio, DeviceInfo, Output, Peaks, Problem, Snapshot};
 use crate::icon::{self, Glyph};
@@ -29,6 +29,11 @@ pub use win32::{preview, render_to_rgba, Panel};
 mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::{preview, render_to_rgba, Panel};
+
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::{preview, render_to_rgba, Panel};
 
 // ---------------------------------------------------------------------------
 // Geometry

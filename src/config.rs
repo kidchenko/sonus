@@ -52,7 +52,8 @@ impl Default for Config {
 
 impl Config {
     /// `%APPDATA%\Sonus` on Windows, `~/Library/Application Support/Sonus` on
-    /// macOS: the per-user, per-app spot each platform expects.
+    /// macOS, `~/.config/sonus` on Linux: the per-user, per-app spot each
+    /// platform expects.
     #[cfg(windows)]
     pub fn dir() -> Option<PathBuf> {
         std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("Sonus"))
@@ -61,6 +62,16 @@ impl Config {
     #[cfg(target_os = "macos")]
     pub fn dir() -> Option<PathBuf> {
         std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support/Sonus"))
+    }
+
+    /// `$XDG_CONFIG_HOME`, which is `~/.config` unless the user moved it.
+    #[cfg(target_os = "linux")]
+    pub fn dir() -> Option<PathBuf> {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .filter(|d| d.is_absolute())
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+            .map(|d| d.join("sonus"))
     }
 
     pub fn path() -> Option<PathBuf> {

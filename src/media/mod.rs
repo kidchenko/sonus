@@ -9,6 +9,9 @@
 //! public is AppleScript, and the two players people use most answer it:
 //! Spotify and Music. Those two get controls; other apps keep their slider.
 //!
+//! Linux has it for every app again: MPRIS, the D-Bus interface players and
+//! browsers offer the desktop's own media controls.
+//!
 //! Read only while the panel is open, on the refresh tick.
 
 #[cfg(windows)]
@@ -20,6 +23,11 @@ use win as imp;
 mod mac;
 #[cfg(target_os = "macos")]
 use mac as imp;
+
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as imp;
 
 use crate::audio::AppAudio;
 use std::sync::Arc;

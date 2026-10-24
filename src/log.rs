@@ -1,5 +1,5 @@
-//! Minimal file logging to `%APPDATA%\Sonus\sonus.log` (or
-//! `~/Library/Application Support/Sonus/sonus.log`).
+//! Minimal file logging to `sonus.log` in the config folder: `%APPDATA%\Sonus`,
+//! `~/Library/Application Support/Sonus` or `~/.config/sonus`.
 //!
 //! Under `windows_subsystem = "windows"` there is no console, so `eprintln!`
 //! goes nowhere. Without a log, "the slider does nothing" is unanswerable: the
@@ -75,7 +75,7 @@ fn stamp() -> String {
     )
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn stamp() -> String {
     let dur = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
