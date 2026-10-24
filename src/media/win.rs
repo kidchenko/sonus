@@ -4,15 +4,22 @@
 //! to a row. A browser can hold several (one per tab with media); the one
 //! Windows calls current wins, then one that is playing.
 //!
-//! Reads wait on WinRT's async calls, which answer in a few milliseconds.
-//! Commands are sent and not waited on: the next refresh shows the result.
-//! A track's thumbnail is read and decoded (WIC) once, when the track starts.
+//! Reads wait on WinRT's async calls. Those answer in a few milliseconds,
+//! unless the app behind a session is busy or stuck, so none of it runs on
+//! the UI thread: a worker owns the sessions, the panel hands it jobs and
+//! takes whatever it last read, at most a refresh old. Commands are sent and
+//! not waited on. A track's thumbnail is read and decoded (WIC) once, when
+//! the track starts.
 
 use super::{session_belongs, Art, Command, Media, ART_EDGE};
 use crate::audio::AppAudio;
 use crate::log::{ldebug, lwarn};
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use windows::core::Interface;
 use windows::Media::Control::{
@@ -26,12 +33,109 @@ use windows::Win32::Graphics::Imaging::{
     WICBitmapDitherTypeNone, WICBitmapInterpolationModeFant, WICBitmapPaletteTypeCustom,
     WICDecodeMetadataCacheOnDemand, WICRect,
 };
-use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
+};
 use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
 
+enum Job {
+    /// Read the sessions of these apps, by key.
+    Read(Vec<String>),
+    Command(String, Command),
+}
+
+/// What the worker last read, by app key, and when. An app missing has
+/// nothing to show.
+#[derive(Default)]
+struct Reading {
+    media: HashMap<String, Media>,
+    at: Option<Instant>,
+}
+
+type Latest = Arc<Mutex<Reading>>;
+
 pub struct Players {
+    jobs: Option<Sender<Job>>,
+    latest: Latest,
+    /// A read is under way. While it is, refreshes do not queue more: a
+    /// session that is slow to answer would otherwise build a backlog.
+    reading: Arc<AtomicBool>,
+}
+
+impl Players {
+    pub fn new() -> Self {
+        let latest: Latest = Arc::default();
+        let reading = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = channel();
+        let spawned = {
+            let latest = latest.clone();
+            let reading = reading.clone();
+            std::thread::Builder::new()
+                .name("sonus-players".into())
+                .spawn(move || Worker::default().run(rx, latest, reading))
+        };
+        let jobs = match spawned {
+            Ok(_) => Some(tx),
+            Err(e) => {
+                lwarn!("no player controls: could not start their thread: {e}");
+                None
+            }
+        };
+        Self {
+            jobs,
+            latest,
+            reading,
+        }
+    }
+
+    /// Show what the worker last read, and ask it for a fresh reading for
+    /// next time. Never waits.
+    pub fn fill(&mut self, apps: &mut [AppAudio]) {
+        if let Ok(latest) = self.latest.lock() {
+            // A playing track has moved on since it was read.
+            let since = latest.at.map_or(0.0, |at| at.elapsed().as_secs_f32());
+            for app in apps.iter_mut().filter(|a| !a.system) {
+                if let Some(media) = latest.media.get(&app.key) {
+                    let mut media = media.clone();
+                    if let (true, Some(at), Some(length)) =
+                        (media.playing, media.position, media.duration)
+                    {
+                        media.position = Some((at + since).min(length));
+                    }
+                    app.media = Some(media);
+                }
+            }
+        }
+        if self.reading.swap(true, Ordering::Relaxed) {
+            return;
+        }
+        let keys = apps
+            .iter()
+            .filter(|a| !a.system)
+            .map(|a| a.key.clone())
+            .collect();
+        if let Some(jobs) = &self.jobs {
+            if jobs.send(Job::Read(keys)).is_err() {
+                self.reading.store(false, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn send(&mut self, key: &str, command: Command) {
+        if let Some(jobs) = &self.jobs {
+            let _ = jobs.send(Job::Command(key.to_owned(), command));
+        }
+    }
+}
+
+/// The worker's side: the session manager and the sessions, which never
+/// leave its thread.
+#[derive(Default)]
+struct Worker {
     manager: Option<Manager>,
     tried: bool,
+    /// The apps last asked about, for the read after a command.
+    keys: Vec<String>,
     /// The session behind each row that has controls, for the buttons.
     sessions: HashMap<String, Session>,
     /// Covers by app and track. `None` kept too: a track without one is not
@@ -39,19 +143,27 @@ pub struct Players {
     covers: HashMap<String, Option<Art>>,
 }
 
-impl Players {
-    pub fn new() -> Self {
-        Self {
-            manager: None,
-            tried: false,
-            sessions: HashMap::new(),
-            covers: HashMap::new(),
+impl Worker {
+    fn run(mut self, jobs: Receiver<Job>, latest: Latest, reading: Arc<AtomicBool>) {
+        // WIC and WinRT both want COM on this thread.
+        let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        for job in jobs {
+            match job {
+                Job::Read(keys) => {
+                    self.keys = keys;
+                    self.read(&latest);
+                    reading.store(false, Ordering::Relaxed);
+                }
+                Job::Command(key, command) => {
+                    self.command(&key, command);
+                }
+            }
         }
     }
 
     /// Asked for on first use rather than at startup: nothing needs it until
     /// the panel opens.
-    fn manager(&mut self) -> Option<&Manager> {
+    fn manager(&mut self) -> Option<Manager> {
         if !self.tried {
             self.tried = true;
             match Manager::RequestAsync().and_then(|op| op.join()) {
@@ -59,13 +171,23 @@ impl Players {
                 Err(e) => lwarn!("media sessions unavailable: {e}"),
             }
         }
-        self.manager.as_ref()
+        self.manager.clone()
     }
 
-    pub fn fill(&mut self, apps: &mut [AppAudio]) {
+    fn read(&mut self, latest: &Latest) {
+        let media = self.sessions();
+        if let Ok(mut latest) = latest.lock() {
+            latest.media = media;
+            latest.at = Some(Instant::now());
+        }
+    }
+
+    /// The best session for each app asked about, and what it is playing.
+    fn sessions(&mut self) -> HashMap<String, Media> {
         self.sessions.clear();
-        let Some(manager) = self.manager().cloned() else {
-            return;
+        let mut found = HashMap::new();
+        let Some(manager) = self.manager() else {
+            return found;
         };
         let current = manager
             .GetCurrentSession()
@@ -73,19 +195,16 @@ impl Players {
             .map(|id| id.to_string())
             .unwrap_or_default();
         let Ok(list) = manager.GetSessions() else {
-            return;
+            return found;
         };
-        // (row, rank, session, media): the best session found for each row.
+        // The best session found for each app: (rank, session, media).
         let mut best: HashMap<usize, (u8, Session, Media)> = HashMap::new();
         for i in 0..list.Size().unwrap_or(0) {
             let Ok(session) = list.GetAt(i) else { continue };
             let Ok(id) = session.SourceAppUserModelId().map(|s| s.to_string()) else {
                 continue;
             };
-            let Some(row) = apps
-                .iter()
-                .position(|a| !a.system && session_belongs(&id, &a.key))
-            else {
+            let Some(row) = self.keys.iter().position(|key| session_belongs(&id, key)) else {
                 ldebug!("media session {id} matches no app");
                 continue;
             };
@@ -98,12 +217,14 @@ impl Players {
             }
         }
         for (row, (_, session, media)) in best {
-            self.sessions.insert(apps[row].key.clone(), session);
-            apps[row].media = Some(media);
+            let key = self.keys[row].clone();
+            self.sessions.insert(key.clone(), session);
+            found.insert(key, media);
         }
+        found
     }
 
-    pub fn send(&mut self, key: &str, command: Command) {
+    fn command(&mut self, key: &str, command: Command) {
         let Some(session) = self.sessions.get(key) else {
             return;
         };
