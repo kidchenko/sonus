@@ -208,3 +208,23 @@ jobs:
             exit 0
           fi
           gh workflow run bump.yml --repo kidchenko/homebrew-tap -f cask=sonus
+
+  # Optional: only runs when the WINGET_TOKEN secret is set (a classic token
+  # with public_repo; the pull request to microsoft/winget-pkgs comes from that
+  # account's fork). It can only add a version to a package that is already in
+  # winget-pkgs, so the first version of each app was submitted by hand.
+  winget:
+    needs: [version, release]
+    runs-on: ubuntu-latest
+    env:
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      - name: Open a pull request on microsoft/winget-pkgs
+        if: env.WINGET_TOKEN != ''
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: kidchenko.Sonus
+          version: ${{ needs.version.outputs.version }}
+          release-tag: ${{ github.ref_name }}
+          installers-regex: '-Setup-[0-9.]+\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}
